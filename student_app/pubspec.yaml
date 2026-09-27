@@ -1,0 +1,32 @@
+name: student_app
+description: Campus bus live tracking for students — Dr. Harisingh Gour University
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  provider: ^6.1.5
+  http: ^1.4.0
+  flutter_secure_storage: ^9.2.4
+  socket_io_client: ^3.1.2
+  flutter_map: ^8.1.1
+  latlong2: ^0.9.1
+  geolocator: ^14.0.1
+  firebase_core: ^4.1.0
+  firebase_messaging: ^16.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+dependency_overrides:
+  path_provider_foundation: 2.4.0
+
+flutter:
+  uses-material-design: true

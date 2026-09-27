@@ -1,0 +1,67 @@
+{
+  "project_info": {
+    "project_number": "267791632831",
+    "project_id": "registration-a6358",
+    "storage_bucket": "registration-a6358.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:267791632831:android:dbfdd016a7c10ea503f90a",
+        "android_client_info": {
+          "package_name": "ac.in.dhsgu.driver_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0-opnNKAHXj_Wo7JCLPMSefDFOW8DfNs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:267791632831:android:dbfdd016a7c10ea503f90a",
+        "android_client_info": {
+          "package_name": "ac.in.dhsgu.student_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0-opnNKAHXj_Wo7JCLPMSefDFOW8DfNs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:267791632831:android:dbfdd016a7c10ea503f90a",
+        "android_client_info": {
+          "package_name": "com.example.bus_tracking"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD0-opnNKAHXj_Wo7JCLPMSefDFOW8DfNs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

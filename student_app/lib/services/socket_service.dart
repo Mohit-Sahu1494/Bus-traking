@@ -1,0 +1,61 @@
+import 'package:socket_io_client/socket_io_client.dart' as io;
+
+import '../core/config.dart';
+
+typedef SocketHandler = void Function(dynamic data);
+
+class SocketService {
+  io.Socket? _socket;
+  bool connected = false;
+  final Map<String, List<SocketHandler>> _handlers = {};
+
+  void on(String event, SocketHandler handler) {
+    _handlers.putIfAbsent(event, () => []).add(handler);
+    _socket?.on(event, handler);
+  }
+
+  Future<void> connect(String token) async {
+    await disconnect();
+    final socket = io.io(
+      AppConfig.apiBaseUrl,
+      io.OptionBuilder()
+          .setTransports(['websocket'])
+          .enableAutoConnect()
+          .enableReconnection()
+          .setReconnectionAttempts(999)
+          .setAuth({'token': token})
+          .build(),
+    );
+    _socket = socket;
+    socket.onConnect((_) {
+      connected = true;
+      _emitLocal('connection_status', {'connected': true});
+    });
+    socket.onDisconnect((_) {
+      connected = false;
+      _emitLocal('connection_status', {'connected': false});
+    });
+    socket.onConnectError((_) {
+      connected = false;
+      _emitLocal('connection_status', {'connected': false});
+    });
+    for (final entry in _handlers.entries) {
+      for (final handler in entry.value) {
+        socket.on(entry.key, handler);
+      }
+    }
+    socket.connect();
+  }
+
+  void _emitLocal(String event, dynamic data) {
+    for (final handler in _handlers[event] ?? const []) {
+      handler(data);
+    }
+  }
+
+  Future<void> disconnect() async {
+    _socket?.dispose();
+    _socket = null;
+    connected = false;
+  }
+}

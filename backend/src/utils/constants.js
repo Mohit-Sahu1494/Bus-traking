@@ -1,0 +1,66 @@
+const ROLES = Object.freeze({
+  STUDENT: 'STUDENT',
+  DRIVER: 'DRIVER',
+  ADMIN: 'ADMIN',
+});
+
+const BUS_STATUS = Object.freeze({
+  INACTIVE: 'INACTIVE',
+  ACTIVE: 'ACTIVE',
+  PAUSED: 'PAUSED',
+  OFFLINE: 'OFFLINE',
+});
+
+const TRIP_STATUS = Object.freeze({
+  NOT_STARTED: 'NOT_STARTED',
+  ACTIVE: 'ACTIVE',
+  PAUSED: 'PAUSED',
+  COMPLETED: 'COMPLETED',
+  CANCELLED: 'CANCELLED',
+});
+
+const TRIP_TRANSITIONS = Object.freeze({
+  [TRIP_STATUS.NOT_STARTED]: [TRIP_STATUS.ACTIVE],
+  [TRIP_STATUS.ACTIVE]: [TRIP_STATUS.PAUSED, TRIP_STATUS.COMPLETED, TRIP_STATUS.CANCELLED],
+  [TRIP_STATUS.PAUSED]: [TRIP_STATUS.ACTIVE, TRIP_STATUS.CANCELLED],
+  [TRIP_STATUS.COMPLETED]: [],
+  [TRIP_STATUS.CANCELLED]: [],
+});
+
+const PAUSE_REASONS = Object.freeze(['TRAFFIC', 'TEMPORARY_ISSUE', 'BREAKDOWN', 'OPERATIONAL_PAUSE']);
+
+const SOCKET_EVENTS = Object.freeze({
+  DRIVER_TRIP_STARTED: 'driver_trip_started',
+  DRIVER_LOCATION_UPDATED: 'driver_location_updated',
+  DRIVER_TRIP_PAUSED: 'driver_trip_paused',
+  DRIVER_TRIP_RESUMED: 'driver_trip_resumed',
+  DRIVER_TRIP_ENDED: 'driver_trip_ended',
+  STOP_REACHED: 'stop_reached',
+  STOP_SKIPPED: 'stop_skipped',
+  NEXT_STOP_UPDATED: 'next_stop_updated',
+  STUDENT_WAITING_UPDATED: 'student_waiting_updated',
+  BUS_STATUS_UPDATED: 'bus_status_updated',
+  ROUTE_UPDATED: 'route_updated',
+  NOTIFICATION_CREATED: 'notification_created',
+});
+
+const TRIP_EVENT_TYPES = Object.freeze({
+  STARTED: 'STARTED',
+  PAUSED: 'PAUSED',
+  RESUMED: 'RESUMED',
+  ENDED: 'ENDED',
+  STOP_REACHED: 'STOP_REACHED',
+  STOP_SKIPPED: 'STOP_SKIPPED',
+  STOP_APPROACHING: 'STOP_APPROACHING',
+  LOCATION_SAMPLE: 'LOCATION_SAMPLE',
+});
+
+module.exports = {
+  ROLES,
+  BUS_STATUS,
+  TRIP_STATUS,
+  TRIP_TRANSITIONS,
+  PAUSE_REASONS,
+  SOCKET_EVENTS,
+  TRIP_EVENT_TYPES,
+};

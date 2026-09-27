@@ -1,0 +1,65 @@
+# ==============================================================================
+# CAMPUS BUS SYSTEM — ROOT .GITIGNORE
+# ==============================================================================
+
+# --- Secrets & Environment Variables (DO NOT PUSH) ---
+.env
+.env.*
+*.env
+!.env.example
+
+# --- Dependencies ---
+node_modules/
+.pub-cache/
+.pub/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+
+# --- Build Outputs ---
+build/
+dist/
+coverage/
+.nyc_output/
+*.apk
+*.aab
+*.ipa
+*.app
+app.*.symbols
+app.*.map.json
+
+# --- Android Machine-Specific & Signing ---
+**/android/.gradle/
+**/android/local.properties
+**/android/app/debug/
+**/android/app/profile/
+**/android/app/release/
+*.keystore
+*.jks
+
+# --- iOS Machine-Specific ---
+**/ios/Pods/
+**/ios/.symlinks/
+**/ios/Flutter/.last_build_id
+**/ios/Flutter/Flutter.framework
+**/ios/Flutter/Flutter.podspec
+**/ios/DerivedData/
+
+# --- IDEs & System Files ---
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# --- Logs ---
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
