@@ -41,9 +41,11 @@ class LiveProvider extends ChangeNotifier {
   Future<void> start(String token) async {
     _bindSockets();
     await _socket.connect(token);
-    await refresh();
-    await loadNotifications();
-    await _startStudentGps();
+    await Future.wait([
+      refresh(),
+      loadNotifications(),
+      _startStudentGps(),
+    ]);
   }
 
   Future<void> refresh() async {

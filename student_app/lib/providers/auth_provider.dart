@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../core/errors.dart';
@@ -26,7 +27,7 @@ class AuthProvider extends ChangeNotifier {
       }
       final data = await _api.get('/api/student/profile');
       user = StudentUser.fromJson(Map<String, dynamic>.from(data as Map));
-      await _registerFcm();
+      unawaited(_registerFcm());
     } on ApiException catch (e) {
       if (e.status == 401) {
         await _api.clearToken();
@@ -49,7 +50,7 @@ class AuthProvider extends ChangeNotifier {
     }, auth: false);
     await _api.saveToken(data['token'] as String);
     user = StudentUser.fromJson(Map<String, dynamic>.from(data['user'] as Map));
-    await _registerFcm();
+    unawaited(_registerFcm());
     notifyListeners();
   }
 
@@ -95,7 +96,7 @@ class AuthProvider extends ChangeNotifier {
     } else {
       await refreshProfile();
     }
-    await _registerFcm();
+    unawaited(_registerFcm());
     notifyListeners();
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -6,13 +7,13 @@ import 'providers/auth_provider.dart';
 import 'providers/live_provider.dart';
 import 'screens/login_screen.dart';
 import 'screens/shell_screen.dart';
+import 'screens/splash_screen.dart';
 import 'services/api_client.dart';
 import 'services/device_location.dart';
+import 'services/fcm_service.dart';
 import 'services/socket_service.dart';
 
-import 'services/fcm_service.dart';
-
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
   final api = ApiClient();
   final socket = SocketService();
@@ -30,15 +31,10 @@ Future<void> main() async {
     live.loadNotifications();
   };
 
-  await auth.restore();
-  if (auth.isAuthenticated) {
-    final token = await api.getToken();
-    if (token != null) await live.start(token);
-  }
   runApp(CampusStudentApp(api: api, socket: socket, auth: auth, live: live));
 }
 
-class CampusStudentApp extends StatelessWidget {
+class CampusStudentApp extends StatefulWidget {
   const CampusStudentApp({
     super.key,
     required this.api,
@@ -53,13 +49,34 @@ class CampusStudentApp extends StatelessWidget {
   final LiveProvider live;
 
   @override
+  State<CampusStudentApp> createState() => _CampusStudentAppState();
+}
+
+class _CampusStudentAppState extends State<CampusStudentApp> {
+  @override
+  void initState() {
+    super.initState();
+    _initApp();
+  }
+
+  Future<void> _initApp() async {
+    await widget.auth.restore();
+    if (widget.auth.isAuthenticated) {
+      final token = await widget.api.getToken();
+      if (token != null) {
+        unawaited(widget.live.start(token));
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MultiProvider(
       providers: [
-        Provider.value(value: api),
-        Provider.value(value: socket),
-        ChangeNotifierProvider.value(value: auth),
-        ChangeNotifierProvider.value(value: live),
+        Provider.value(value: widget.api),
+        Provider.value(value: widget.socket),
+        ChangeNotifierProvider.value(value: widget.auth),
+        ChangeNotifierProvider.value(value: widget.live),
       ],
       child: Consumer<AuthProvider>(
         builder: (context, authState, _) {
@@ -67,7 +84,11 @@ class CampusStudentApp extends StatelessWidget {
             title: 'Campus Bus',
             debugShowCheckedModeBanner: false,
             theme: AppTheme.light(),
-            home: authState.isAuthenticated ? const ShellScreen() : const LoginScreen(),
+            home: authState.loading
+                ? const SplashScreen()
+                : (authState.isAuthenticated
+                    ? const ShellScreen()
+                    : const LoginScreen()),
           );
         },
       ),

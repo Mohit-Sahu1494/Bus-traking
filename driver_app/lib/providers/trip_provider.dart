@@ -44,9 +44,11 @@ class TripProvider extends ChangeNotifier {
   Future<void> startSession(String token) async {
     _bind();
     await _socket.connect(token);
-    await refresh();
-    await loadHistory();
-    await fetchAvailableBuses();
+    await Future.wait([
+      refresh(),
+      loadHistory(),
+      fetchAvailableBuses(),
+    ]);
   }
 
   Future<void> refresh() async {

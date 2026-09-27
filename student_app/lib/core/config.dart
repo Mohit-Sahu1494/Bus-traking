@@ -1,5 +1,3 @@
-import 'package:flutter/foundation.dart';
-import 'dart:io' show Platform;
 import 'package:latlong2/latlong.dart';
 
 import '../models/models.dart';
@@ -7,9 +5,10 @@ import '../models/models.dart';
 class AppConfig {
   static String get apiBaseUrl {
     const fromEnv = String.fromEnvironment('API_BASE_URL');
-    if (fromEnv.isNotEmpty) return fromEnv.replaceAll(RegExp(r'/$'), '');
-    if (!kIsWeb && Platform.isAndroid) return 'http://10.0.2.2:4000';
-    return 'http://localhost:4000';
+    if (fromEnv.isNotEmpty) {
+      return fromEnv.replaceAll(RegExp(r'/$'), '');
+    }
+    return 'https://bus-traking-production.up.railway.app';
   }
 
   // Dr. Harisingh Gour Vishwavidyalaya, Sagar Centroid

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:student_app/core/config.dart';
 import 'package:student_app/models/models.dart';
+import 'package:student_app/screens/splash_screen.dart';
 import 'package:student_app/services/route_geometry_service.dart';
 
 void main() {
@@ -373,6 +374,33 @@ void main() {
         expect(tester.takeException(), isNull);
         expect(find.text('Center Point'), findsOneWidget);
         expect(find.text('Stop Code: CENTER_POINT'), findsOneWidget);
+      });
+    }
+  });
+
+  group('SplashScreen Responsive Layout Tests', () {
+    final screenWidths = [320.0, 360.0, 375.0, 390.0, 412.0, 430.0];
+
+    for (final width in screenWidths) {
+      testWidgets('Student SplashScreen renders without overflow at ${width}px', (tester) async {
+        tester.view.physicalSize = Size(width, 800.0);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        await tester.pumpWidget(
+          const MaterialApp(
+            home: SplashScreen(),
+          ),
+        );
+
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        expect(find.text('Campus Bus'), findsOneWidget);
+        expect(find.text('Dr. Harisingh Gour Vishwavidyalaya, Sagar'), findsOneWidget);
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
       });
     }
   });

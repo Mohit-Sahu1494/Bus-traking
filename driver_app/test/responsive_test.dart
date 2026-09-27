@@ -8,6 +8,7 @@ import 'package:driver_app/services/device_location.dart';
 import 'package:driver_app/services/socket_service.dart';
 import 'package:driver_app/screens/home_screen.dart';
 import 'package:driver_app/screens/profile_screen.dart';
+import 'package:driver_app/screens/splash_screen.dart';
 
 class FakeApiClient extends ApiClient {
   @override
@@ -138,6 +139,25 @@ void main() {
 
       await tester.pump();
       expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('Driver SplashScreen renders without overflow at ${width}px', (tester) async {
+      tester.view.physicalSize = Size(width * 2, 800 * 2);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: SplashScreen(),
+        ),
+      );
+
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Campus Bus Driver'), findsOneWidget);
+      expect(find.text('Driver Console • DHSGU University'), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
     });
   }
 }
