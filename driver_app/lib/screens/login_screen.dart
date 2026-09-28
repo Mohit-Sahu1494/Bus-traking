@@ -112,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   keyboardType: TextInputType.emailAddress,
                   decoration: const InputDecoration(
                     labelText: 'Driver Email',
-                    hintText: 'driver@dhsgu.ac.in',
+                    hintText: 'Enter driver email address',
                     prefixIcon: Icon(Icons.badge_outlined, color: AppTheme.muted, size: 20),
                   ),
                 ),
@@ -175,19 +175,11 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
 
                 const SizedBox(height: 24),
-                Center(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF8FAFC),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: AppTheme.border),
-                    ),
-                    child: const Text(
-                      'Default seeded credentials: driver@dhsgu.ac.in / Driver@12345',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 11, color: AppTheme.muted, fontWeight: FontWeight.w500),
-                    ),
+                const Center(
+                  child: Text(
+                    'Authorized university transport drivers only',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(fontSize: 12, color: AppTheme.muted, fontWeight: FontWeight.w500),
                   ),
                 ),
               ],
