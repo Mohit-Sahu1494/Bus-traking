@@ -211,10 +211,139 @@ async function setPickupStop(user, stopId) {
   return stop;
 }
 
+async function forgotStudentPassword({ email }) {
+  const normEmail = email.toLowerCase().trim();
+  const user = await User.findOne({ email: normEmail, role: ROLES.STUDENT }).select(
+    '+resetPasswordOtpLastSentAt'
+  );
+
+  if (!user) {
+    throw new AppError('No student account found with this email.', 404, 'ACCOUNT_NOT_FOUND');
+  }
+
+  if (!user.isEmailVerified) {
+    throw new AppError(
+      'Your email address is not verified yet. Please verify your email first.',
+      403,
+      'EMAIL_NOT_VERIFIED',
+      { email: maskEmail(normEmail), unverifiedEmail: normEmail }
+    );
+  }
+
+  const now = Date.now();
+  if (user.resetPasswordOtpLastSentAt && now - user.resetPasswordOtpLastSentAt.getTime() < 30000) {
+    const remainingSec = Math.ceil((30000 - (now - user.resetPasswordOtpLastSentAt.getTime())) / 1000);
+    throw new AppError(`Please wait ${remainingSec}s before requesting a new code.`, 429, 'RESEND_COOLDOWN');
+  }
+
+  const otp = generateSecureOtp();
+  user.resetPasswordOtpHash = await bcrypt.hash(otp, 10);
+  user.resetPasswordOtpExpiresAt = new Date(now + 5 * 60 * 1000);
+  user.resetPasswordOtpAttempts = 0;
+  user.resetPasswordOtpLastSentAt = new Date();
+  await user.save();
+
+  try {
+    await sendOtpEmail({ email: normEmail, name: user.name, otp, purpose: 'RESET_PASSWORD' });
+  } catch (err) {
+    console.error('[OTP_DELIVERY_FAILED]', err.message);
+    throw new AppError('Unable to send password reset email. Please try again.', 503, 'OTP_DELIVERY_FAILED');
+  }
+
+  return {
+    email: maskEmail(normEmail),
+    unmaskedEmail: normEmail,
+  };
+}
+
+async function resendStudentResetOtp({ email }) {
+  const normEmail = email.toLowerCase().trim();
+  const user = await User.findOne({ email: normEmail, role: ROLES.STUDENT }).select(
+    '+resetPasswordOtpLastSentAt'
+  );
+
+  if (!user) {
+    throw new AppError('No student account found with this email.', 404, 'ACCOUNT_NOT_FOUND');
+  }
+
+  if (!user.isEmailVerified) {
+    throw new AppError(
+      'Your email address is not verified yet. Please verify your email first.',
+      403,
+      'EMAIL_NOT_VERIFIED',
+      { email: maskEmail(normEmail), unverifiedEmail: normEmail }
+    );
+  }
+
+  const now = Date.now();
+  if (user.resetPasswordOtpLastSentAt && now - user.resetPasswordOtpLastSentAt.getTime() < 30000) {
+    const remainingSec = Math.ceil((30000 - (now - user.resetPasswordOtpLastSentAt.getTime())) / 1000);
+    throw new AppError(`Please wait ${remainingSec}s before requesting a new code.`, 429, 'RESEND_COOLDOWN');
+  }
+
+  const otp = generateSecureOtp();
+  user.resetPasswordOtpHash = await bcrypt.hash(otp, 10);
+  user.resetPasswordOtpExpiresAt = new Date(now + 5 * 60 * 1000);
+  user.resetPasswordOtpAttempts = 0;
+  user.resetPasswordOtpLastSentAt = new Date();
+  await user.save();
+
+  try {
+    await sendOtpEmail({ email: normEmail, name: user.name, otp, purpose: 'RESET_PASSWORD' });
+  } catch (err) {
+    console.error('[OTP_DELIVERY_FAILED]', err.message);
+    throw new AppError('Unable to send password reset email. Please try again.', 503, 'OTP_DELIVERY_FAILED');
+  }
+
+  return { email: maskEmail(normEmail) };
+}
+
+async function resetStudentPassword({ email, otp, password }) {
+  const normEmail = email.toLowerCase().trim();
+  const user = await User.findOne({ email: normEmail, role: ROLES.STUDENT }).select(
+    '+resetPasswordOtpHash +resetPasswordOtpExpiresAt +resetPasswordOtpAttempts'
+  );
+
+  if (!user) {
+    throw new AppError('No student account found with this email.', 404, 'ACCOUNT_NOT_FOUND');
+  }
+
+  if (!user.resetPasswordOtpExpiresAt || user.resetPasswordOtpExpiresAt < new Date()) {
+    throw new AppError('Password reset code has expired. Please request a new code.', 400, 'OTP_EXPIRED');
+  }
+
+  if ((user.resetPasswordOtpAttempts || 0) >= 5) {
+    throw new AppError('Too many failed attempts. Please request a new code.', 429, 'OTP_ATTEMPTS_EXCEEDED');
+  }
+
+  const isMatch = await bcrypt.compare(otp, user.resetPasswordOtpHash || '');
+  if (!isMatch) {
+    user.resetPasswordOtpAttempts = (user.resetPasswordOtpAttempts || 0) + 1;
+    await user.save();
+    throw new AppError('Invalid reset code', 400, 'INVALID_OTP');
+  }
+
+  const passwordHash = await bcrypt.hash(password, 12);
+  user.passwordHash = passwordHash;
+  user.resetPasswordOtpHash = undefined;
+  user.resetPasswordOtpExpiresAt = undefined;
+  user.resetPasswordOtpAttempts = 0;
+  user.resetPasswordOtpLastSentAt = undefined;
+  await user.save();
+
+  return {
+    success: true,
+    message: 'Password reset successfully. Please login with your new password.',
+  };
+}
+
 module.exports = {
   registerStudent,
   verifyStudentOtp,
   resendStudentOtp,
+  forgotStudentPassword,
+  resendStudentResetOtp,
+  resetStudentPassword,
   loginByRole,
   setPickupStop,
 };

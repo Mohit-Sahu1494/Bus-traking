@@ -17,11 +17,13 @@ class AppConfig {
   static const campusCenterLng = 78.7762;
 
   // Verified University Bus Stop Coordinates (Single Source of Truth)
-  static const computerScience = LatLng(23.824232252667205, 78.78215542847788);
-  static const criminology = LatLng(23.823290586415027, 78.78310833763173);
-  static const centerPoint = LatLng(23.826769418621495, 78.77207848833157);
-  static const boysHostel = LatLng(23.8223332722968, 78.77027060622879);
-  static const girlsHostel = LatLng(23.831797143673885, 78.78234670088726);
+  static const computerScience = LatLng(23.824607044488115, 78.78210767766332);
+  static const criminology = LatLng(23.823539099418205, 78.78306732002264);
+  static const centerPoint = LatLng(23.826803182208682, 78.77196190502646);
+  static const centerPointSeq4 = LatLng(23.82665450787519, 78.77178170834694);
+  static const centerPointSeq7 = LatLng(23.82679396278914, 78.77201469954832);
+  static const boysHostel = LatLng(23.821345891404626, 78.7700572856471);
+  static const girlsHostel = LatLng(23.830215356429985, 78.77840351072815);
 
   /// Default 7-stop fixed circular route with unique sequences:
   /// Sequence 1 -> Center Point
@@ -74,14 +76,14 @@ class AppConfig {
     RouteStopInfo(
       id: 'rs_seq_4',
       sequence: 4,
-      latitude: centerPoint.latitude,
-      longitude: centerPoint.longitude,
+      latitude: centerPointSeq4.latitude,
+      longitude: centerPointSeq4.longitude,
       stop: StopInfo(
         id: 'stop_center_point',
         name: 'Center Point',
         code: 'CENTER_POINT',
-        latitude: centerPoint.latitude,
-        longitude: centerPoint.longitude,
+        latitude: centerPointSeq4.latitude,
+        longitude: centerPointSeq4.longitude,
       ),
     ),
     RouteStopInfo(
@@ -113,14 +115,14 @@ class AppConfig {
     RouteStopInfo(
       id: 'rs_seq_7',
       sequence: 7,
-      latitude: centerPoint.latitude,
-      longitude: centerPoint.longitude,
+      latitude: centerPointSeq7.latitude,
+      longitude: centerPointSeq7.longitude,
       stop: StopInfo(
         id: 'stop_center_point',
         name: 'Center Point',
         code: 'CENTER_POINT',
-        latitude: centerPoint.latitude,
-        longitude: centerPoint.longitude,
+        latitude: centerPointSeq7.latitude,
+        longitude: centerPointSeq7.longitude,
       ),
     ),
   ];

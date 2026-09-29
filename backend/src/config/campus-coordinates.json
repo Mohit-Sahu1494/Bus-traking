@@ -2,11 +2,11 @@
   "_comment": "VERIFIED GPS coordinates for each campus bus stop at Dr. Harisingh Gour University, Sagar, MP.",
   "campusCentroid": { "latitude": 23.8267, "longitude": 78.7762 },
   "stops": [
-    { "code": "CENTER_POINT", "name": "Center Point", "latitude": 23.826769418621495, "longitude": 78.77207848833157 },
-    { "code": "CS_DEPT", "name": "Computer Science Department", "latitude": 23.824232252667205, "longitude": 78.78215542847788 },
-    { "code": "CRIMINOLOGY", "name": "Criminology Department", "latitude": 23.823290586415027, "longitude": 78.78310833763173 },
-    { "code": "BOYS_HOSTEL", "name": "Boys Hostel", "latitude": 23.8223332722968, "longitude": 78.77027060622879 },
-    { "code": "GIRLS_HOSTEL", "name": "Girls Hostel", "latitude": 23.831797143673885, "longitude": 78.78234670088726 }
+    { "code": "CENTER_POINT", "name": "Center Point", "latitude": 23.826803182208682, "longitude": 78.77196190502646 },
+    { "code": "CS_DEPT", "name": "Computer Science Department", "latitude": 23.824607044488115, "longitude": 78.78210767766332 },
+    { "code": "CRIMINOLOGY", "name": "Criminology Department", "latitude": 23.823539099418205, "longitude": 78.78306732002264 },
+    { "code": "BOYS_HOSTEL", "name": "Boys Hostel", "latitude": 23.821345891404626, "longitude": 78.7700572856471 },
+    { "code": "GIRLS_HOSTEL", "name": "Girls Hostel", "latitude": 23.830215356429985, "longitude": 78.77840351072815 }
   ],
   "routeSequences": [
     "CENTER_POINT",
@@ -16,5 +16,14 @@
     "BOYS_HOSTEL",
     "GIRLS_HOSTEL",
     "CENTER_POINT"
+  ],
+  "routeStops": [
+    { "sequence": 1, "code": "CENTER_POINT", "name": "Center Point", "latitude": 23.826803182208682, "longitude": 78.77196190502646 },
+    { "sequence": 2, "code": "CS_DEPT", "name": "Computer Science Department", "latitude": 23.824607044488115, "longitude": 78.78210767766332 },
+    { "sequence": 3, "code": "CRIMINOLOGY", "name": "Criminology Department", "latitude": 23.823539099418205, "longitude": 78.78306732002264 },
+    { "sequence": 4, "code": "CENTER_POINT", "name": "Center Point", "latitude": 23.82665450787519, "longitude": 78.77178170834694 },
+    { "sequence": 5, "code": "BOYS_HOSTEL", "name": "Boys Hostel", "latitude": 23.821345891404626, "longitude": 78.7700572856471 },
+    { "sequence": 6, "code": "GIRLS_HOSTEL", "name": "Girls Hostel", "latitude": 23.830215356429985, "longitude": 78.77840351072815 },
+    { "sequence": 7, "code": "CENTER_POINT", "name": "Center Point", "latitude": 23.82679396278914, "longitude": 78.77201469954832 }
   ]
 }

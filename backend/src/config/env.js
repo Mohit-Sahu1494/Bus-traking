@@ -17,7 +17,7 @@ const env = {
   port: Number(process.env.PORT || 4000),
   mongoUri: required('MONGODB_URI'),
   jwtSecret: required('JWT_SECRET'),
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '365d',
   redisUrl: process.env.REDIS_URL || '',
   firebaseProjectId: process.env.FIREBASE_PROJECT_ID || '',
   firebaseClientEmail: process.env.FIREBASE_CLIENT_EMAIL || '',

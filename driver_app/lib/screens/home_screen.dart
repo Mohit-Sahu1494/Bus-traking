@@ -94,11 +94,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         toSeq: nextSeq,
       );
       if (activeSegment.length >= 2) {
+        // Outer glow underlay for prominent visibility
         polylines.add(
           Polyline(
             points: activeSegment,
-            color: const Color(0xFF1D4ED8),
-            strokeWidth: 5.0,
+            color: const Color(0x551E3A8A), // dark blue glow
+            strokeWidth: 10.0,
+            strokeCap: StrokeCap.round,
+            strokeJoin: StrokeJoin.round,
+          ),
+        );
+
+        // Core highlighted route line from bus to next stop in bold Dark Blue
+        polylines.add(
+          Polyline(
+            points: activeSegment,
+            color: const Color(0xFF1E3A8A), // deep dark blue
+            strokeWidth: 6.0,
             strokeCap: StrokeCap.round,
             strokeJoin: StrokeJoin.round,
           ),

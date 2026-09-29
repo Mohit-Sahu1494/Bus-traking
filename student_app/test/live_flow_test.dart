@@ -1,6 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:latlong2/latlong.dart';
 import 'package:student_app/providers/live_provider.dart';
 import 'package:student_app/services/api_client.dart';
 import 'package:student_app/services/device_location.dart';

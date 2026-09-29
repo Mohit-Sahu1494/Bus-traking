@@ -33,6 +33,20 @@ const resendOtpSchema = z.object({
   email: z.string().email('Valid email is required'),
 });
 
+const studentForgotPasswordSchema = z.object({
+  email: z.string().email('Valid student email is required'),
+});
+
+const studentResetPasswordSchema = z.object({
+  email: z.string().email('Valid student email is required'),
+  otp: z.string().length(6, 'Reset code must be 6 digits').regex(/^\d{6}$/, 'Reset code must be numeric'),
+  password: z.string().min(8, 'New password must be at least 8 characters'),
+});
+
+const studentResendResetOtpSchema = z.object({
+  email: z.string().email('Valid student email is required'),
+});
+
 const loginSchema = z.object({
   email: z.string().email('Valid email is required'),
   password: z.string().min(1, 'Password is required'),
@@ -81,6 +95,9 @@ module.exports = {
   studentRegisterSchema,
   verifyOtpSchema,
   resendOtpSchema,
+  studentForgotPasswordSchema,
+  studentResetPasswordSchema,
+  studentResendResetOtpSchema,
   loginSchema,
   pickupStopSchema,
   pauseTripSchema,

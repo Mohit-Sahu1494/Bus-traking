@@ -7,6 +7,7 @@ import 'package:driver_app/services/api_client.dart';
 import 'package:driver_app/services/device_location.dart';
 import 'package:driver_app/services/socket_service.dart';
 import 'package:driver_app/screens/home_screen.dart';
+import 'package:driver_app/screens/login_screen.dart';
 import 'package:driver_app/screens/profile_screen.dart';
 import 'package:driver_app/screens/splash_screen.dart';
 
@@ -158,6 +159,35 @@ void main() {
       expect(find.text('Campus Bus Driver'), findsOneWidget);
       expect(find.text('Driver Console • DHSGU University'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('Driver LoginScreen renders without overflow at ${width}px', (tester) async {
+      tester.view.physicalSize = Size(width * 2, 800 * 2);
+      tester.view.devicePixelRatio = 2.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      final api = FakeApiClient();
+      final auth = AuthProvider(api);
+      final trip = TripProvider(api, FakeSocketService(), FakeLocationService());
+
+      await tester.pumpWidget(
+        MultiProvider(
+          providers: [
+            ChangeNotifierProvider<AuthProvider>.value(value: auth),
+            ChangeNotifierProvider<TripProvider>.value(value: trip),
+            Provider<ApiClient>.value(value: api),
+          ],
+          child: const MaterialApp(
+            home: LoginScreen(),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(find.text('Driver Cockpit'), findsOneWidget);
+      expect(find.text('ACCESS DRIVER COCKPIT'), findsOneWidget);
     });
   }
 }

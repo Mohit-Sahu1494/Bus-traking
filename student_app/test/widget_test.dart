@@ -9,11 +9,11 @@ import 'package:student_app/services/route_geometry_service.dart';
 void main() {
   group('Verified Stop Coordinates Tests', () {
     test('Verified bus stop coordinates match exact requirements', () {
-      expect(AppConfig.computerScience, const LatLng(23.824232252667205, 78.78215542847788));
-      expect(AppConfig.criminology, const LatLng(23.823290586415027, 78.78310833763173));
-      expect(AppConfig.centerPoint, const LatLng(23.826769418621495, 78.77207848833157));
-      expect(AppConfig.boysHostel, const LatLng(23.8223332722968, 78.77027060622879));
-      expect(AppConfig.girlsHostel, const LatLng(23.831797143673885, 78.78234670088726));
+      expect(AppConfig.computerScience, const LatLng(23.824607044488115, 78.78210767766332));
+      expect(AppConfig.criminology, const LatLng(23.823539099418205, 78.78306732002264));
+      expect(AppConfig.centerPoint, const LatLng(23.826803182208682, 78.77196190502646));
+      expect(AppConfig.boysHostel, const LatLng(23.821345891404626, 78.7700572856471));
+      expect(AppConfig.girlsHostel, const LatLng(23.830215356429985, 78.77840351072815));
     });
 
     test('Route order has exactly 7 stops with unique sequences', () {

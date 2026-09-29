@@ -15,6 +15,10 @@ const userSchema = new mongoose.Schema(
     otpExpiresAt: { type: Date, select: false },
     otpAttempts: { type: Number, default: 0, select: false },
     otpLastSentAt: { type: Date, select: false },
+    resetPasswordOtpHash: { type: String, select: false },
+    resetPasswordOtpExpiresAt: { type: Date, select: false },
+    resetPasswordOtpAttempts: { type: Number, default: 0, select: false },
+    resetPasswordOtpLastSentAt: { type: Date, select: false },
     notificationSettings: {
       busApproaching: { type: Boolean, default: true },
       busArrived: { type: Boolean, default: true },

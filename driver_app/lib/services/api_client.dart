@@ -7,10 +7,17 @@ import '../core/errors.dart';
 class ApiClient {
   final _storage = const FlutterSecureStorage();
   static const _tokenKey = 'auth_token';
+  static const _profileKey = 'auth_driver_profile';
 
   Future<String?> getToken() => _storage.read(key: _tokenKey);
   Future<void> saveToken(String token) => _storage.write(key: _tokenKey, value: token);
-  Future<void> clearToken() => _storage.delete(key: _tokenKey);
+  Future<String?> getProfileData() => _storage.read(key: _profileKey);
+  Future<void> saveProfileData(String data) => _storage.write(key: _profileKey, value: data);
+  Future<void> clearProfileData() => _storage.delete(key: _profileKey);
+  Future<void> clearToken() async {
+    await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: _profileKey);
+  }
 
   Uri _uri(String path) => Uri.parse('${AppConfig.apiBaseUrl}$path');
 

@@ -4,12 +4,18 @@ const {
   studentRegisterSchema,
   verifyOtpSchema,
   resendOtpSchema,
+  studentForgotPasswordSchema,
+  studentResetPasswordSchema,
+  studentResendResetOtpSchema,
   loginSchema,
 } = require('../validators');
 const {
   registerStudent,
   verifyStudentOtp,
   resendStudentOtp,
+  forgotStudentPassword,
+  resendStudentResetOtp,
+  resetStudentPassword,
   loginByRole,
 } = require('../services/authService');
 const { ROLES } = require('../utils/constants');
@@ -54,6 +60,36 @@ const studentResendOtp = asyncHandler(async (req, res) => {
   });
 });
 
+const studentForgotPassword = asyncHandler(async (req, res) => {
+  const body = parse(studentForgotPasswordSchema, req.body);
+  const result = await forgotStudentPassword(body);
+  res.json({
+    success: true,
+    message: 'Password reset code sent successfully',
+    data: result,
+  });
+});
+
+const studentResendResetOtp = asyncHandler(async (req, res) => {
+  const body = parse(studentResendResetOtpSchema, req.body);
+  const result = await resendStudentResetOtp(body);
+  res.json({
+    success: true,
+    message: 'Password reset code resent successfully',
+    data: result,
+  });
+});
+
+const studentResetPassword = asyncHandler(async (req, res) => {
+  const body = parse(studentResetPasswordSchema, req.body);
+  const result = await resetStudentPassword(body);
+  res.json({
+    success: true,
+    message: result.message,
+    data: result,
+  });
+});
+
 const studentLogin = asyncHandler(async (req, res) => {
   const body = parse(loginSchema, req.body);
   const result = await loginByRole(body, ROLES.STUDENT);
@@ -78,6 +114,9 @@ module.exports = {
   studentRegister,
   studentVerifyOtp,
   studentResendOtp,
+  studentForgotPassword,
+  studentResendResetOtp,
+  studentResetPassword,
   studentLogin,
   driverLogin,
 };

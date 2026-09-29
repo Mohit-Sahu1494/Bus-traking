@@ -11,11 +11,18 @@ class ApiClient {
 
   final _storage = const FlutterSecureStorage();
   static const _tokenKey = 'auth_token';
+  static const _userDataKey = 'auth_user_data';
   void Function()? onUnauthorized;
 
   Future<String?> getToken() => _storage.read(key: _tokenKey);
   Future<void> saveToken(String token) => _storage.write(key: _tokenKey, value: token);
-  Future<void> clearToken() => _storage.delete(key: _tokenKey);
+  Future<String?> getUserData() => _storage.read(key: _userDataKey);
+  Future<void> saveUserData(String data) => _storage.write(key: _userDataKey, value: data);
+  Future<void> clearUserData() => _storage.delete(key: _userDataKey);
+  Future<void> clearToken() async {
+    await _storage.delete(key: _tokenKey);
+    await _storage.delete(key: _userDataKey);
+  }
 
   Uri _uri(String path) => Uri.parse('${AppConfig.apiBaseUrl}$path');
 

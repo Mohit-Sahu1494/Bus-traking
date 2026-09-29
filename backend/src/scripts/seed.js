@@ -35,16 +35,29 @@ async function seed() {
   );
 
   await RouteStop.deleteMany({ route: route._id });
-  for (let i = 0; i < coords.routeSequences.length; i += 1) {
-    const code = coords.routeSequences[i];
-    const stop = stopDocs[code];
-    await RouteStop.create({
-      route: route._id,
-      stop: stop._id,
-      sequence: i + 1,
-      latitude: stop.latitude,
-      longitude: stop.longitude,
-    });
+  if (coords.routeStops && coords.routeStops.length > 0) {
+    for (const rs of coords.routeStops) {
+      const stop = stopDocs[rs.code];
+      await RouteStop.create({
+        route: route._id,
+        stop: stop._id,
+        sequence: rs.sequence,
+        latitude: rs.latitude,
+        longitude: rs.longitude,
+      });
+    }
+  } else {
+    for (let i = 0; i < coords.routeSequences.length; i += 1) {
+      const code = coords.routeSequences[i];
+      const stop = stopDocs[code];
+      await RouteStop.create({
+        route: route._id,
+        stop: stop._id,
+        sequence: i + 1,
+        latitude: stop.latitude,
+        longitude: stop.longitude,
+      });
+    }
   }
 
   const adminHash = await bcrypt.hash(env.seedAdminPassword, 12);

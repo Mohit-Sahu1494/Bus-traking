@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import '../core/errors.dart';
 import '../services/api_client.dart';
@@ -24,6 +25,16 @@ class DriverProfile {
         completedTrips: (json['completedTrips'] as num?)?.toInt() ?? 0,
         skippedStops: (json['skippedStops'] as num?)?.toInt() ?? 0,
       );
+
+  Map<String, dynamic> toJson() => {
+        'name': name,
+        'email': email,
+        'phone': phone,
+        'busNumber': busNumber,
+        'totalTrips': totalTrips,
+        'completedTrips': completedTrips,
+        'skippedStops': skippedStops,
+      };
 }
 
 class AuthProvider extends ChangeNotifier {
@@ -42,11 +53,24 @@ class AuthProvider extends ChangeNotifier {
         profile = null;
         return;
       }
-      await refresh();
-    } on ApiException catch (e) {
-      if (e.status == 401) {
-        await _api.clearToken();
-        profile = null;
+
+      // Immediately restore cached driver profile so driver stays logged in
+      final cachedJson = await _api.getProfileData();
+      if (cachedJson != null && cachedJson.isNotEmpty) {
+        try {
+          profile = DriverProfile.fromJson(jsonDecode(cachedJson) as Map<String, dynamic>);
+        } catch (_) {}
+      }
+
+      try {
+        await refresh();
+      } on ApiException catch (e) {
+        if (e.status == 401) {
+          await _api.clearToken();
+          profile = null;
+        }
+      } catch (_) {
+        // Keep cached profile on offline/timeout
       }
     } finally {
       loading = false;
@@ -63,6 +87,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> refresh() async {
     final data = await _api.get('/api/driver/profile');
     profile = DriverProfile.fromJson(Map<String, dynamic>.from(data as Map));
+    await _api.saveProfileData(jsonEncode(profile!.toJson()));
     notifyListeners();
   }
 

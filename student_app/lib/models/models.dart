@@ -107,4 +107,20 @@ class StudentUser {
       isEmailVerified: json['isEmailVerified'] as bool? ?? false,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'name': name,
+        'email': email,
+        if (enrollmentNumber != null) 'enrollmentNumber': enrollmentNumber,
+        if (pickupStop != null)
+          'pickupStop': {
+            'id': pickupStop!.id,
+            'name': pickupStop!.name,
+            'code': pickupStop!.code,
+            'latitude': pickupStop!.latitude,
+            'longitude': pickupStop!.longitude,
+          },
+        'isEmailVerified': isEmailVerified,
+      };
 }

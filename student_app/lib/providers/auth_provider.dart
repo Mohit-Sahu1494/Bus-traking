@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../core/errors.dart';
@@ -25,15 +26,30 @@ class AuthProvider extends ChangeNotifier {
         user = null;
         return;
       }
-      final data = await _api.get('/api/student/profile');
-      user = StudentUser.fromJson(Map<String, dynamic>.from(data as Map));
-      unawaited(_registerFcm());
-    } on ApiException catch (e) {
-      if (e.status == 401) {
-        await _api.clearToken();
-        user = null;
-      } else {
-        error = e.message;
+
+      // Immediately restore cached user profile so student stays logged in
+      final cachedJson = await _api.getUserData();
+      if (cachedJson != null && cachedJson.isNotEmpty) {
+        try {
+          user = StudentUser.fromJson(jsonDecode(cachedJson) as Map<String, dynamic>);
+        } catch (_) {}
+      }
+
+      // Refresh profile in background
+      try {
+        final data = await _api.get('/api/student/profile');
+        user = StudentUser.fromJson(Map<String, dynamic>.from(data as Map));
+        await _api.saveUserData(jsonEncode(user!.toJson()));
+        unawaited(_registerFcm());
+      } on ApiException catch (e) {
+        if (e.status == 401) {
+          await _api.clearToken();
+          user = null;
+        } else {
+          error = e.message;
+        }
+      } catch (_) {
+        // Keep cached user on offline/timeout
       }
     } finally {
       loading = false;
@@ -50,6 +66,7 @@ class AuthProvider extends ChangeNotifier {
     }, auth: false);
     await _api.saveToken(data['token'] as String);
     user = StudentUser.fromJson(Map<String, dynamic>.from(data['user'] as Map));
+    await _api.saveUserData(jsonEncode(user!.toJson()));
     unawaited(_registerFcm());
     notifyListeners();
   }
@@ -93,6 +110,7 @@ class AuthProvider extends ChangeNotifier {
     }
     if (map['user'] != null) {
       user = StudentUser.fromJson(Map<String, dynamic>.from(map['user'] as Map));
+      await _api.saveUserData(jsonEncode(user!.toJson()));
     } else {
       await refreshProfile();
     }
@@ -111,7 +129,49 @@ class AuthProvider extends ChangeNotifier {
     return map['email']?.toString() ?? email;
   }
 
+  Future<Map<String, dynamic>> forgotPassword(String email) async {
+    error = null;
+    final data = await _api.send(
+      'POST',
+      '/api/auth/student/forgot-password',
+      body: {'email': email.trim()},
+      auth: false,
+    );
+    return Map<String, dynamic>.from(data as Map);
+  }
+
+  Future<String> resendResetOtp({required String email}) async {
+    final data = await _api.send(
+      'POST',
+      '/api/auth/student/resend-reset-otp',
+      body: {'email': email.trim()},
+      auth: false,
+    );
+    final map = Map<String, dynamic>.from(data as Map);
+    return map['email']?.toString() ?? email;
+  }
+
+  Future<Map<String, dynamic>> resetPassword({
+    required String email,
+    required String otp,
+    required String newPassword,
+  }) async {
+    error = null;
+    final data = await _api.send(
+      'POST',
+      '/api/auth/student/reset-password',
+      body: {
+        'email': email.trim(),
+        'otp': otp.trim(),
+        'password': newPassword,
+      },
+      auth: false,
+    );
+    return Map<String, dynamic>.from(data as Map);
+  }
+
   void handleSessionExpired() {
+    _api.clearToken();
     user = null;
     error = 'Your session has expired. Please login again.';
     notifyListeners();
@@ -120,6 +180,7 @@ class AuthProvider extends ChangeNotifier {
   Future<void> refreshProfile() async {
     final data = await _api.get('/api/student/profile');
     user = StudentUser.fromJson(Map<String, dynamic>.from(data as Map));
+    await _api.saveUserData(jsonEncode(user!.toJson()));
     notifyListeners();
   }
 

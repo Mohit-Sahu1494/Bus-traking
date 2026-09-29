@@ -162,17 +162,17 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       // Outer glow underlay for prominent visibility
       polylines.add(Polyline(
         points: activeRoadPoints,
-        color: const Color(0x4D1D4ED8), // soft vivid blue glow
+        color: const Color(0x551E3A8A), // dark blue glow
         strokeWidth: 10.0,
         strokeCap: StrokeCap.round,
         strokeJoin: StrokeJoin.round,
       ));
 
-      // Core highlighted route line following actual roads
+      // Core highlighted route line from bus to next stop in bold Dark Blue
       polylines.add(Polyline(
         points: activeRoadPoints,
-        color: const Color(0xFF1D4ED8), // vivid royal blue
-        strokeWidth: 5.5,
+        color: const Color(0xFF1E3A8A), // deep dark blue
+        strokeWidth: 6.0,
         strokeCap: StrokeCap.round,
         strokeJoin: StrokeJoin.round,
       ));

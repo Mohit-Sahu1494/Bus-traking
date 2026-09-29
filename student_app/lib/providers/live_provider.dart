@@ -291,6 +291,7 @@ class LiveProvider extends ChangeNotifier {
       currentSequence = null;
       distanceToNextStopM = null;
       etaLabel = 'Calculating...';
+      routeStops = List<RouteStopInfo>.from(AppConfig.defaultRouteStops);
     }
     if (routeStops.isEmpty) {
       routeStops = List<RouteStopInfo>.from(AppConfig.defaultRouteStops);
