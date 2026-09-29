@@ -9,7 +9,7 @@ const {
 } = require('../utils/constants');
 const { canTransition, nextRouteStop } = require('../utils/tripLogic');
 const { emitCampus } = require('../sockets/emitter');
-const { setTripState, clearTripState } = require('./realtimeStore');
+const { setTripState, clearTripState, setBusLocation } = require('./realtimeStore');
 const { loadRouteStops, tripProgress, studentsForPickup, remainingStopIds, getActiveTrip } = require('./routeService');
 const { clearWaitingForStop, clearAllWaiting, waitingPayload } = require('./waitingService');
 const { createAndPush } = require('./notificationService');
@@ -89,14 +89,43 @@ function emitTrip(event, payload) {
   }
 }
 
-async function startTrip(user) {
+async function startTrip(user, initialCoords = null) {
   const driver = await assignedDriverContext(user);
   const existing = await Trip.findOne({
     driver: driver._id,
     status: { $in: [TRIP_STATUS.ACTIVE, TRIP_STATUS.PAUSED] },
-  });
+  }).populate('bus').populate('route').populate('driver');
+
   if (existing) {
-    throw new AppError('You already have an active trip.', 400, 'TRIP_ALREADY_ACTIVE');
+    if (
+      initialCoords &&
+      typeof initialCoords.latitude === 'number' &&
+      typeof initialCoords.longitude === 'number' &&
+      initialCoords.latitude >= -90 &&
+      initialCoords.latitude <= 90 &&
+      initialCoords.longitude >= -180 &&
+      initialCoords.longitude <= 180
+    ) {
+      const locPayload = {
+        latitude: initialCoords.latitude,
+        longitude: initialCoords.longitude,
+        speed: initialCoords.speed || 0,
+        heading: initialCoords.heading || 0,
+        accuracy: initialCoords.accuracy || null,
+        at: new Date().toISOString(),
+        busId: String(existing.bus._id),
+        tripId: String(existing._id),
+        status: existing.status,
+      };
+      await setBusLocation(String(existing.bus._id), locPayload);
+      existing.bus.lastLocation = { latitude: locPayload.latitude, longitude: locPayload.longitude };
+      existing.bus.lastLocationAt = new Date();
+      existing.bus.lastHeartbeatAt = new Date();
+      await existing.bus.save();
+    }
+    const state = await snapshot(existing);
+    emitTrip(SOCKET_EVENTS.DRIVER_TRIP_STARTED, state);
+    return state;
   }
 
   const bus = await Bus.findById(driver.assignedBus._id);
@@ -137,6 +166,33 @@ async function startTrip(user) {
   bus.status = BUS_STATUS.ACTIVE;
   bus.activeTrip = trip._id;
   bus.assignedDriver = driver._id;
+
+  if (
+    initialCoords &&
+    typeof initialCoords.latitude === 'number' &&
+    typeof initialCoords.longitude === 'number' &&
+    initialCoords.latitude >= -90 &&
+    initialCoords.latitude <= 90 &&
+    initialCoords.longitude >= -180 &&
+    initialCoords.longitude <= 180
+  ) {
+    const locPayload = {
+      latitude: initialCoords.latitude,
+      longitude: initialCoords.longitude,
+      speed: initialCoords.speed || 0,
+      heading: initialCoords.heading || 0,
+      accuracy: initialCoords.accuracy || null,
+      at: new Date().toISOString(),
+      busId: String(bus._id),
+      tripId: String(trip._id),
+      status: TRIP_STATUS.ACTIVE,
+    };
+    await setBusLocation(String(bus._id), locPayload);
+    bus.lastLocation = { latitude: locPayload.latitude, longitude: locPayload.longitude };
+    bus.lastLocationAt = new Date();
+    bus.lastHeartbeatAt = new Date();
+  }
+
   await bus.save();
 
   const populated = await Trip.findById(trip._id).populate('bus').populate('route').populate('driver');
@@ -145,16 +201,24 @@ async function startTrip(user) {
   emitTrip(SOCKET_EVENTS.DRIVER_TRIP_STARTED, state);
   emitCampus(SOCKET_EVENTS.ROUTE_UPDATED, { routeStops: state.routeStops });
 
-  const students = await User.find({ role: 'STUDENT' }).select('_id');
-  await createAndPush({
-    userIds: students.map((s) => s._id),
-    title: `${bus.busNumber} is active`,
-    body: 'Campus bus trip has started. Track it live on the map.',
-    type: 'TRIP_STARTED',
-    data: { tripId: String(trip._id), busNumber: bus.busNumber },
-    trip: trip._id,
-    dedupKey: `trip-start-${trip._id}`,
-  });
+  // Asynchronous non-blocking push notification dispatch
+  User.find({ role: 'STUDENT' })
+    .select('_id')
+    .then((students) => {
+      if (!students.length) return;
+      return createAndPush({
+        userIds: students.map((s) => s._id),
+        title: `${bus.busNumber} is active`,
+        body: 'Campus bus trip has started. Track it live on the map.',
+        type: 'TRIP_STARTED',
+        data: { tripId: String(trip._id), busNumber: bus.busNumber },
+        trip: trip._id,
+        dedupKey: `trip-start-${trip._id}`,
+      });
+    })
+    .catch((err) => {
+      console.error('Background trip start notification failed:', err.message);
+    });
 
   return state;
 }

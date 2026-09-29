@@ -67,7 +67,7 @@ const live = asyncHandler(async (req, res) => {
 });
 
 const start = asyncHandler(async (req, res) => {
-  const data = await startTrip(req.user);
+  const data = await startTrip(req.user, req.body);
   res.status(201).json({ success: true, data });
 });
 

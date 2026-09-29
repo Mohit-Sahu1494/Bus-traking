@@ -9,15 +9,31 @@ enum LocationCheckResult {
 }
 
 class DeviceLocationService {
+  Future<bool> isLocationServiceEnabled() async {
+    try {
+      return await Geolocator.isLocationServiceEnabled();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<LocationPermission> checkPermission() async {
+    return Geolocator.checkPermission();
+  }
+
+  Future<LocationPermission> requestPermission() async {
+    return Geolocator.requestPermission();
+  }
+
   Future<LocationCheckResult> checkAndRequestPermission() async {
-    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    final serviceEnabled = await isLocationServiceEnabled();
     if (!serviceEnabled) {
       return LocationCheckResult.serviceDisabled;
     }
 
-    var permission = await Geolocator.checkPermission();
+    var permission = await checkPermission();
     if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
+      permission = await requestPermission();
     }
 
     if (permission == LocationPermission.deniedForever) {
@@ -36,11 +52,29 @@ class DeviceLocationService {
     return res == LocationCheckResult.granted;
   }
 
-  Future<Position?> current() async {
-    if (!await ensurePermission()) return null;
-    return Geolocator.getCurrentPosition(
-      locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
-    );
+  Future<Position?> current({Duration timeout = const Duration(seconds: 7)}) async {
+    try {
+      final serviceEnabled = await isLocationServiceEnabled();
+      if (!serviceEnabled) return null;
+      final perm = await checkPermission();
+      if (perm == LocationPermission.denied || perm == LocationPermission.deniedForever) {
+        return null;
+      }
+      return await Geolocator.getCurrentPosition(
+        locationSettings: LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: timeout,
+        ),
+      );
+    } catch (e) {
+      debugPrint('[DeviceLocationService] Failed to acquire current position: $e');
+      // Fallback to last known position if current times out
+      try {
+        return await Geolocator.getLastKnownPosition();
+      } catch (_) {
+        return null;
+      }
+    }
   }
 
   Stream<Position> stream({String busNumber = 'Bus'}) {

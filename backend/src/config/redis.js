@@ -16,13 +16,12 @@ function createMemoryStore() {
       if (exIndex !== -1 && args[exIndex + 1]) {
         const seconds = Number(args[exIndex + 1]);
         if (timers.has(key)) clearTimeout(timers.get(key));
-        timers.set(
-          key,
-          setTimeout(() => {
-            map.delete(key);
-            timers.delete(key);
-          }, seconds * 1000)
-        );
+        const timer = setTimeout(() => {
+          map.delete(key);
+          timers.delete(key);
+        }, seconds * 1000);
+        if (typeof timer.unref === 'function') timer.unref();
+        timers.set(key, timer);
       }
       return 'OK';
     },

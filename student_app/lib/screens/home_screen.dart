@@ -20,7 +20,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final MapController _mapController = MapController();
 
   static const LatLng _campusCenter = LatLng(
@@ -31,9 +31,23 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     RouteGeometryService.instance.fetchAndCacheAllSegments().then((_) {
       if (mounted) setState(() {});
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      context.read<LiveProvider>().onAppResumed();
+    }
   }
 
   void _recenterCampus() {
@@ -752,7 +766,10 @@ class _HomeScreenState extends State<HomeScreen> {
                               point: live.busLatLng!,
                               width: 60,
                               height: 60,
-                              child: _BusMarker(busNumber: live.busNumber ?? 'BUS-04'),
+                              child: _BusMarker(
+                                busNumber: live.busNumber ?? 'BUS-04',
+                                isStale: live.busStatus == 'OFFLINE',
+                              ),
                             ),
                         ],
                       ),
@@ -765,6 +782,13 @@ class _HomeScreenState extends State<HomeScreen> {
                     top: 14,
                     child: Column(
                       children: [
+                        _MapButton(
+                          icon: Icons.refresh_rounded,
+                          tooltip: 'Refresh',
+                          isLoading: live.isRefreshing,
+                          onTap: live.refresh,
+                        ),
+                        const SizedBox(height: 8),
                         _MapButton(
                           icon: Icons.school_outlined,
                           tooltip: 'Recenter Campus',
@@ -828,12 +852,14 @@ class _MapButton extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     this.iconColor,
+    this.isLoading = false,
   });
 
   final IconData icon;
   final String tooltip;
   final VoidCallback onTap;
   final Color? iconColor;
+  final bool isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -842,7 +868,7 @@ class _MapButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(AppTheme.radiusButton),
       child: InkWell(
         borderRadius: BorderRadius.circular(AppTheme.radiusButton),
-        onTap: onTap,
+        onTap: isLoading ? null : onTap,
         child: Container(
           width: 48,
           height: 48,
@@ -852,10 +878,18 @@ class _MapButton extends StatelessWidget {
             border: Border.all(color: AppTheme.border),
             boxShadow: AppTheme.floatingShadow,
           ),
-          child: Icon(
-            icon,
-            size: 22,
-            color: iconColor ?? AppTheme.accent,
+          child: Center(
+            child: isLoading
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.accent),
+                  )
+                : Icon(
+                    icon,
+                    size: 22,
+                    color: iconColor ?? AppTheme.accent,
+                  ),
           ),
         ),
       ),
@@ -965,11 +999,19 @@ class _StopMarker extends StatelessWidget {
 }
 
 class _BusMarker extends StatelessWidget {
-  const _BusMarker({required this.busNumber});
+  const _BusMarker({
+    required this.busNumber,
+    this.isStale = false,
+  });
+
   final String busNumber;
+  final bool isStale;
 
   @override
   Widget build(BuildContext context) {
+    final bgColor = isStale ? const Color(0xFF64748B) : const Color(0xFF1E3A8A);
+    final badgeColor = isStale ? const Color(0xFF475569) : AppTheme.navy;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -977,29 +1019,37 @@ class _BusMarker extends StatelessWidget {
           width: 38,
           height: 38,
           decoration: BoxDecoration(
-            color: const Color(0xFF1E3A8A),
+            color: bgColor,
             shape: BoxShape.circle,
             border: Border.all(color: Colors.white, width: 2.5),
-            boxShadow: const [
-              BoxShadow(color: Color(0x401E3A8A), blurRadius: 8, offset: Offset(0, 3)),
+            boxShadow: [
+              BoxShadow(
+                color: isStale ? const Color(0x33000000) : const Color(0x401E3A8A),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
             ],
           ),
-          child: const Center(
-            child: Icon(Icons.directions_bus_rounded, color: Colors.white, size: 21),
+          child: Center(
+            child: Icon(
+              Icons.directions_bus_rounded,
+              color: isStale ? Colors.white70 : Colors.white,
+              size: 21,
+            ),
           ),
         ),
         const SizedBox(height: 2),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
           decoration: BoxDecoration(
-            color: AppTheme.navy,
+            color: badgeColor,
             borderRadius: BorderRadius.circular(4),
             boxShadow: const [
               BoxShadow(color: Color(0x26000000), blurRadius: 3, offset: Offset(0, 1)),
             ],
           ),
           child: Text(
-            busNumber,
+            isStale ? '$busNumber • OFFLINE' : busNumber,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 8.5,
@@ -1341,58 +1391,69 @@ class _NextStopCard extends StatelessWidget {
                         borderRadius: BorderRadius.circular(AppTheme.radiusButton),
                       ),
                     ),
-                    onPressed: pickupName == null
-                        ? onSelectPickup
-                        : () async {
-                            try {
-                              if (live.isWaiting) {
-                                await live.cancelWaiting();
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text('Waiting status cancelled.'),
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
+                    onPressed: (live.isTogglingWaiting)
+                        ? null
+                        : (pickupName == null
+                            ? onSelectPickup
+                            : () async {
+                                try {
+                                  if (live.isWaiting) {
+                                    await live.cancelWaiting();
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(
+                                          content: Text('Waiting status cancelled.'),
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  } else {
+                                    await live.imWaiting();
+                                    if (context.mounted) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        SnackBar(
+                                          content: Text("You're marked as waiting at $pickupName."),
+                                          backgroundColor: AppTheme.emerald,
+                                          behavior: SnackBarBehavior.floating,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text(e.toString()),
+                                        backgroundColor: AppTheme.coral,
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  }
                                 }
-                              } else {
-                                await live.imWaiting();
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text("You're marked as waiting at $pickupName."),
-                                      backgroundColor: AppTheme.emerald,
-                                      behavior: SnackBarBehavior.floating,
-                                    ),
-                                  );
-                                }
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(e.toString()),
-                                    backgroundColor: AppTheme.coral,
-                                    behavior: SnackBarBehavior.floating,
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          live.isWaiting ? Icons.check_circle_rounded : Icons.directions_bus_rounded,
-                          size: 17,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          live.isWaiting ? "YOU'RE WAITING" : "I'M WAITING",
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.2),
-                        ),
-                      ],
-                    ),
+                              }),
+                    child: live.isTogglingWaiting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                live.isWaiting ? Icons.check_circle_rounded : Icons.directions_bus_rounded,
+                                size: 17,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                live.isWaiting ? "YOU'RE WAITING" : "I'M WAITING",
+                                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13, letterSpacing: 0.2),
+                              ),
+                            ],
+                          ),
                   ),
                 ),
               ),

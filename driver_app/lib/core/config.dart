@@ -6,7 +6,9 @@ class AppConfig {
     if (fromEnv.isNotEmpty) {
       return fromEnv.replaceAll(RegExp(r'/$'), '');
     }
-    return 'https://bus-traking-production.up.railway.app';
+
+    //https://bus-traking-production.up.railway.app
+    return 'http://localhost:4000';
   }
 
   // Dr. Harisingh Gour Vishwavidyalaya, Sagar Centroid

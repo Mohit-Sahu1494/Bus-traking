@@ -190,6 +190,7 @@ async function startHeartbeatMonitor() {
             busId: String(bus._id),
             busNumber: bus.busNumber,
             status: BUS_STATUS.OFFLINE,
+            tripStatus: bus.activeTrip ? TRIP_STATUS.ACTIVE : TRIP_STATUS.NOT_STARTED,
           });
         }
       }

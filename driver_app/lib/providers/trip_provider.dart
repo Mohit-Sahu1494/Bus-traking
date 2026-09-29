@@ -3,9 +3,17 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import '../core/config.dart';
+import '../core/errors.dart';
 import '../services/api_client.dart';
 import '../services/device_location.dart';
 import '../services/socket_service.dart';
+
+enum GpsStatusResult {
+  ready,
+  serviceDisabled,
+  permissionDenied,
+  permissionDeniedForever,
+}
 
 class TripProvider extends ChangeNotifier {
   TripProvider(this._api, this._socket, this._location);
@@ -26,6 +34,7 @@ class TripProvider extends ChangeNotifier {
   List<Map<String, dynamic>> history = [];
   List<Map<String, dynamic>> availableBuses = [];
   bool loadingBuses = false;
+  bool isStartingTrip = false;
 
   Position? currentPosition;
   String currentAreaDescription = 'GPS LIVE';
@@ -44,11 +53,50 @@ class TripProvider extends ChangeNotifier {
   Future<void> startSession(String token) async {
     _bind();
     await _socket.connect(token);
+    await checkGpsStatus();
     await Future.wait([
       refresh(),
       loadHistory(),
       fetchAvailableBuses(),
     ]);
+  }
+
+  Future<GpsStatusResult> checkGpsStatus() async {
+    final enabled = await _location.isLocationServiceEnabled();
+    if (!enabled) {
+      gpsOn = false;
+      gpsError = 'Location (GPS) is turned off.';
+      notifyListeners();
+      return GpsStatusResult.serviceDisabled;
+    }
+
+    final perm = await _location.checkPermission();
+    if (perm == LocationPermission.denied) {
+      gpsOn = false;
+      gpsError = 'Location permission is required.';
+      notifyListeners();
+      return GpsStatusResult.permissionDenied;
+    }
+    if (perm == LocationPermission.deniedForever) {
+      gpsOn = false;
+      gpsError = 'Location permission permanently denied.';
+      notifyListeners();
+      return GpsStatusResult.permissionDeniedForever;
+    }
+
+    gpsOn = true;
+    gpsError = null;
+    notifyListeners();
+    return GpsStatusResult.ready;
+  }
+
+  Future<void> onAppResumed() async {
+    debugPrint('[TripProvider] onAppResumed: checking GPS & refreshing state');
+    await checkGpsStatus();
+    if (isActive || isPaused) {
+      await _ensureGps();
+    }
+    await refresh();
   }
 
   Future<void> refresh() async {
@@ -108,33 +156,109 @@ class TripProvider extends ChangeNotifier {
   }
 
   Future<void> startTrip() async {
-    // 1. Verify GPS permission and hardware availability before starting
-    final perm = await _location.checkAndRequestPermission();
-    if (perm == LocationCheckResult.serviceDisabled) {
-      gpsError = 'Device GPS is turned off. Please enable Location in settings.';
-      notifyListeners();
-      await _location.openLocationServiceSettings();
-      throw Exception('Location (GPS) is required to start the trip. Please enable GPS.');
-    }
-    if (perm == LocationCheckResult.permissionDenied || perm == LocationCheckResult.permissionDeniedForever) {
-      gpsError = 'Location permission is denied.';
-      notifyListeners();
-      if (perm == LocationCheckResult.permissionDeniedForever) {
-        await _location.openSettings();
-      }
-      throw Exception('Location permission is required to start the trip.');
-    }
-
-    // 2. Start Trip on backend
-    final res = await _api.send('POST', '/api/driver/trip/start');
-    live = Map<String, dynamic>.from(res as Map);
-    tripStatus = 'ACTIVE';
-    busStatus = 'ACTIVE';
-    gpsError = null;
-
-    // 3. Immediately start streaming GPS
-    await _ensureGps();
+    if (isStartingTrip) return;
+    isStartingTrip = true;
     notifyListeners();
+
+    try {
+      debugPrint('[TripProvider] START_TRIP_CLICKED at ${DateTime.now().toIso8601String()}');
+
+      // 1. Immediately check whether location services/GPS are enabled
+      final serviceEnabled = await _location.isLocationServiceEnabled();
+      debugPrint('[TripProvider] LOCATION_SERVICE_STATUS: $serviceEnabled');
+      if (!serviceEnabled) {
+        gpsOn = false;
+        gpsError = 'Device GPS is turned off. Please enable Location in settings.';
+        notifyListeners();
+        throw const GpsDisabledException(
+          'Location (GPS) is turned off. Please enable Location in your device settings to start tracking.',
+        );
+      }
+
+      // 2. Check and request permission
+      var perm = await _location.checkPermission();
+      debugPrint('[TripProvider] LOCATION_PERMISSION_STATUS (check): $perm');
+      if (perm == LocationPermission.denied) {
+        perm = await _location.requestPermission();
+        debugPrint('[TripProvider] LOCATION_PERMISSION_STATUS (requested): $perm');
+      }
+
+      if (perm == LocationPermission.denied) {
+        gpsOn = false;
+        gpsError = 'Location permission is denied.';
+        notifyListeners();
+        throw const LocationPermissionException('Location permission is required to start the trip.');
+      }
+
+      if (perm == LocationPermission.deniedForever) {
+        gpsOn = false;
+        gpsError = 'Location permission permanently denied.';
+        notifyListeners();
+        throw const LocationPermissionException(
+          'Location permission is permanently denied. Please enable location access in App Settings.',
+          permanentlyDenied: true,
+        );
+      }
+
+      gpsOn = true;
+      gpsError = null;
+
+      // 3. Acquire valid current location with timeout before starting on backend
+      debugPrint('[TripProvider] LOCATION_ACQUISITION_STARTED at ${DateTime.now().toIso8601String()}');
+      final pos = await _location.current(timeout: const Duration(seconds: 7));
+      if (pos == null) {
+        debugPrint('[TripProvider] LOCATION_ACQUISITION_FAILED: Timeout or unable to get position');
+        throw const LocationAcquisitionException(
+          'Unable to get your current location. Please make sure GPS is enabled and you are in an area with a location signal.',
+        );
+      }
+
+      debugPrint('[TripProvider] LOCATION_ACQUIRED: (${pos.latitude}, ${pos.longitude}) acc=${pos.accuracy}m');
+      currentPosition = pos;
+      _updateAreaDescription(pos);
+
+      // 4. Send Start Trip request with initial coordinates
+      debugPrint('[TripProvider] START_TRIP_API_STARTED at ${DateTime.now().toIso8601String()}');
+      final body = {
+        'latitude': pos.latitude,
+        'longitude': pos.longitude,
+        'speed': pos.speed,
+        'heading': pos.heading,
+        'accuracy': pos.accuracy,
+      };
+
+      try {
+        final res = await _api.send('POST', '/api/driver/trip/start', body: body);
+        debugPrint('[TripProvider] START_TRIP_API_RESPONSE received successfully');
+        live = Map<String, dynamic>.from(res as Map);
+        tripStatus = 'ACTIVE';
+        busStatus = 'ACTIVE';
+        gpsError = null;
+      } on ApiException catch (e) {
+        if (e.message.toLowerCase().contains('already have an active trip') ||
+            e.message.contains('TRIP_ALREADY_ACTIVE')) {
+          debugPrint('[TripProvider] Trip already active on server, syncing state...');
+          await refresh();
+          if (tripStatus != 'ACTIVE') {
+            tripStatus = 'ACTIVE';
+            busStatus = 'ACTIVE';
+          }
+          gpsError = null;
+        } else {
+          rethrow;
+        }
+      }
+
+      // 5. Start streaming GPS
+      await _ensureGps();
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[TripProvider] START_TRIP_API_FAILED: $e');
+      rethrow;
+    } finally {
+      isStartingTrip = false;
+      notifyListeners();
+    }
   }
 
   Future<void> pauseTrip(String reason) async {
@@ -237,10 +361,20 @@ class TripProvider extends ChangeNotifier {
   }
 
   Future<void> _ensureGps() async {
+    final serviceEnabled = await _location.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      gpsOn = false;
+      gpsError = 'Location (GPS) is turned off.';
+      await _stopGps();
+      notifyListeners();
+      return;
+    }
+
     final ok = await _location.ensurePermission();
     if (!ok) {
       gpsOn = false;
       gpsError = 'Location permission is denied or GPS is turned off.';
+      await _stopGps();
       notifyListeners();
       return;
     }
@@ -249,14 +383,19 @@ class TripProvider extends ChangeNotifier {
 
     // Start streaming position with foreground notification
     final assignedBus = busNumber.isNotEmpty ? busNumber : 'BUS-04';
-    _gpsSub ??= _location.stream(busNumber: assignedBus).listen(
-      _onPosition,
-      onError: (err) {
-        gpsError = 'GPS Signal Lost: $err';
-        gpsOn = false;
-        notifyListeners();
-      },
-    );
+    if (_gpsSub == null) {
+      _gpsSub = _location.stream(busNumber: assignedBus).listen(
+        _onPosition,
+        onError: (err) {
+          debugPrint('[TripProvider] GPS Signal lost or stream error: $err');
+          _gpsSub?.cancel();
+          _gpsSub = null;
+          gpsError = 'GPS Signal Lost: $err';
+          gpsOn = false;
+          notifyListeners();
+        },
+      );
+    }
 
     // Initial position sample
     final pos = await _location.current();

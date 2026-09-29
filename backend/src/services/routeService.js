@@ -24,7 +24,19 @@ async function tripProgress(trip) {
       ? routeStops.find((rs) => rs.sequence === trip.currentSequence) || null
       : null;
   const next = nextRouteStop(routeStops, trip.currentSequence, trip.skippedSequences);
-  const location = await getBusLocation(String(trip.bus._id || trip.bus));
+  let location = await getBusLocation(String(trip.bus._id || trip.bus));
+  if (!location && trip.bus && trip.bus.lastLocation?.latitude && trip.bus.lastLocation?.longitude) {
+    location = {
+      latitude: trip.bus.lastLocation.latitude,
+      longitude: trip.bus.lastLocation.longitude,
+      speed: 0,
+      heading: 0,
+      at: trip.bus.lastLocationAt ? new Date(trip.bus.lastLocationAt).toISOString() : new Date().toISOString(),
+      busId: String(trip.bus._id || trip.bus),
+      tripId: String(trip._id),
+      status: trip.status,
+    };
+  }
   const samples = await getSamples(String(trip.bus._id || trip.bus));
 
   let eta = null;
@@ -60,6 +72,7 @@ async function remainingStopIds(trip) {
 
 async function getActiveTrip() {
   return Trip.findOne({ status: { $in: ['ACTIVE', 'PAUSED'] } })
+    .sort({ startedAt: -1 })
     .populate('driver')
     .populate('bus')
     .populate('route');

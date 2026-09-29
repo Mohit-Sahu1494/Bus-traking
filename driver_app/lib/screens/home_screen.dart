@@ -8,6 +8,7 @@ import '../core/errors.dart';
 import '../core/theme.dart';
 import '../providers/auth_provider.dart';
 import '../providers/trip_provider.dart';
+import '../services/device_location.dart';
 import '../services/route_geometry_service.dart';
 import '../widgets/bus_selection_sheet.dart';
 import 'route_screen.dart';
@@ -19,7 +20,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final MapController _mapController = MapController();
 
   static const LatLng _campusCenter = LatLng(
@@ -30,6 +31,25 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<TripProvider>().checkGpsStatus();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      context.read<TripProvider>().onAppResumed();
+    }
   }
 
   void _recenterBus(LatLng? busPos) {
@@ -822,17 +842,27 @@ class _HomeScreenState extends State<HomeScreen> {
   // --- BOTTOM ACTION BUTTONS (Sections 25, 27, 28, 51, 53) ---
   Widget _buildBottomActions(BuildContext context, TripProvider trip) {
     if (trip.tripStatus == 'NOT_STARTED' || trip.tripStatus == 'COMPLETED' || trip.tripStatus == 'CANCELLED') {
+      final isLoading = trip.isStartingTrip;
       return SizedBox(
         width: double.infinity,
         height: 54,
         child: FilledButton.icon(
           style: FilledButton.styleFrom(
-            backgroundColor: AppTheme.primary,
+            backgroundColor: isLoading ? const Color(0xFF94A3B8) : AppTheme.primary,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           ),
-          icon: const Icon(Icons.play_arrow_rounded, size: 26),
-          label: const Text('START TRIP', style: TextStyle(fontSize: 17, letterSpacing: 0.5, fontWeight: FontWeight.w800)),
-          onPressed: () => _run(context, trip.startTrip),
+          icon: isLoading
+              ? const SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                )
+              : const Icon(Icons.play_arrow_rounded, size: 26),
+          label: Text(
+            isLoading ? 'STARTING TRIP...' : 'START TRIP',
+            style: const TextStyle(fontSize: 17, letterSpacing: 0.5, fontWeight: FontWeight.w800),
+          ),
+          onPressed: isLoading ? null : () => _handleStartTrip(context, trip),
         ),
       );
     }
@@ -993,6 +1023,97 @@ class _HomeScreenState extends State<HomeScreen> {
         style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: fg),
       ),
     );
+  }
+
+  Future<void> _handleStartTrip(BuildContext context, TripProvider trip) async {
+    if (trip.isStartingTrip) return;
+
+    final locationService = DeviceLocationService();
+    final isGpsOn = await locationService.isLocationServiceEnabled();
+    if (!isGpsOn) {
+      if (!context.mounted) return;
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.location_off_rounded, color: AppTheme.coral),
+              SizedBox(width: 8),
+              Text('GPS is Turned Off'),
+            ],
+          ),
+          content: const Text(
+            'GPS/Location services are disabled on your device. Live bus tracking requires GPS to be enabled.\n\nPlease enable Location in settings and try again.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: AppTheme.primary),
+              onPressed: () {
+                Navigator.pop(ctx);
+                locationService.openLocationServiceSettings();
+              },
+              child: const Text('Enable Location'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    try {
+      await trip.startTrip();
+    } catch (e) {
+      if (!context.mounted) return;
+      if (e is GpsDisabledException) {
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('GPS Required'),
+            content: Text(e.message),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  locationService.openLocationServiceSettings();
+                },
+                child: const Text('Enable Location'),
+              ),
+            ],
+          ),
+        );
+      } else if (e is LocationPermissionException && e.permanentlyDenied) {
+        await showDialog(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Permission Required'),
+            content: Text(e.message),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+              FilledButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  locationService.openSettings();
+                },
+                child: const Text('Open Settings'),
+              ),
+            ],
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(humanizeError(e)),
+            backgroundColor: AppTheme.coral,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   Future<void> _run(BuildContext context, Future<void> Function() action) async {

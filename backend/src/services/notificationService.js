@@ -130,32 +130,40 @@ async function createAndPush({
     if (!eligibleUsers.length) return [];
 
     // 3. Persist notifications & emit in-app Socket.IO events
-    const createdDocs = [];
     const tripIdStr = trip ? String(trip._id || trip) : '';
+    let existingUserSet = new Set();
 
-    for (const user of eligibleUsers) {
-      // DB-level deduplication check if dedupKey provided
-      if (dedupKey) {
-        const existing = await Notification.findOne({
-          user: user._id,
-          dedupKey,
-        });
-        if (existing) continue;
-      }
+    if (dedupKey) {
+      const existing = await Notification.find({
+        user: { $in: eligibleUserIds },
+        dedupKey,
+      }).select('user');
+      existingUserSet = new Set(existing.map((e) => String(e.user)));
+    }
 
-      const doc = await Notification.create({
-        user: user._id,
-        title,
-        body,
-        type,
-        data,
-        trip: trip?._id || trip,
-        dedupKey: dedupKey || undefined,
-      });
-      createdDocs.push(doc);
+    const usersToNotify = eligibleUsers.filter((u) => !existingUserSet.has(String(u._id)));
+    if (!usersToNotify.length) return [];
 
+    const notificationsToInsert = usersToNotify.map((u) => ({
+      user: u._id,
+      title,
+      body,
+      type,
+      data,
+      trip: trip?._id || trip,
+      dedupKey: dedupKey || undefined,
+    }));
+
+    let createdDocs = [];
+    try {
+      createdDocs = await Notification.insertMany(notificationsToInsert, { ordered: false });
+    } catch (insertErr) {
+      createdDocs = insertErr.insertedDocs || [];
+    }
+
+    for (const doc of createdDocs) {
       // Real-time in-app notification event for open app
-      emitUser(String(user._id), SOCKET_EVENTS.NOTIFICATION_CREATED, {
+      emitUser(String(doc.user), SOCKET_EVENTS.NOTIFICATION_CREATED, {
         id: String(doc._id),
         title,
         body,

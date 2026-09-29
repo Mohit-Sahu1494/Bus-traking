@@ -34,6 +34,8 @@ class LiveProvider extends ChangeNotifier {
   String? pauseMessage;
   String? gpsError;
   List<Map<String, dynamic>> notifications = [];
+  bool isTogglingWaiting = false;
+  bool isRefreshing = false;
 
   int get unreadNotificationsCount =>
       notifications.where((n) => n['readAt'] == null).length;
@@ -48,7 +50,14 @@ class LiveProvider extends ChangeNotifier {
     ]);
   }
 
+  Future<void> onAppResumed() async {
+    debugPrint('[LiveProvider] onAppResumed: refreshing live state');
+    await refresh();
+  }
+
   Future<void> refresh() async {
+    isRefreshing = true;
+    notifyListeners();
     try {
       final data = Map<String, dynamic>.from(await _api.get('/api/student/live') as Map);
       _applyLive(data);
@@ -68,8 +77,9 @@ class LiveProvider extends ChangeNotifier {
           }
         }
       }
-      notifyListeners();
     } catch (_) {
+    } finally {
+      isRefreshing = false;
       notifyListeners();
     }
   }
@@ -92,21 +102,35 @@ class LiveProvider extends ChangeNotifier {
   }
 
   Future<void> imWaiting() async {
-    final data = await _api.send('POST', '/api/student/waiting');
-    waiting = ((data['stops'] as List?) ?? [])
-        .map((e) => WaitingCount.fromJson(Map<String, dynamic>.from(e as Map)))
-        .toList();
-    isWaiting = true;
+    if (isTogglingWaiting) return;
+    isTogglingWaiting = true;
     notifyListeners();
+    try {
+      final data = await _api.send('POST', '/api/student/waiting');
+      waiting = ((data['stops'] as List?) ?? [])
+          .map((e) => WaitingCount.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      isWaiting = true;
+    } finally {
+      isTogglingWaiting = false;
+      notifyListeners();
+    }
   }
 
   Future<void> cancelWaiting() async {
-    final data = await _api.send('DELETE', '/api/student/waiting');
-    waiting = ((data['stops'] as List?) ?? [])
-        .map((e) => WaitingCount.fromJson(Map<String, dynamic>.from(e as Map)))
-        .toList();
-    isWaiting = false;
+    if (isTogglingWaiting) return;
+    isTogglingWaiting = true;
     notifyListeners();
+    try {
+      final data = await _api.send('DELETE', '/api/student/waiting');
+      waiting = ((data['stops'] as List?) ?? [])
+          .map((e) => WaitingCount.fromJson(Map<String, dynamic>.from(e as Map)))
+          .toList();
+      isWaiting = false;
+    } finally {
+      isTogglingWaiting = false;
+      notifyListeners();
+    }
   }
 
   Future<void> loadNotifications() async {
@@ -180,7 +204,10 @@ class LiveProvider extends ChangeNotifier {
         case 'driver_location_updated':
           final lat = (data['latitude'] as num?)?.toDouble();
           final lng = (data['longitude'] as num?)?.toDouble();
-          if (lat != null && lng != null) busLatLng = LatLng(lat, lng);
+          if (lat != null && lng != null && (lat != 0 || lng != 0)) {
+            busLatLng = LatLng(lat, lng);
+            if (busStatus == 'OFFLINE') busStatus = 'ACTIVE';
+          }
           if (data['currentSequence'] != null) {
             currentSequence = (data['currentSequence'] as num).toInt();
           }
@@ -250,11 +277,12 @@ class LiveProvider extends ChangeNotifier {
   }
 
   void _applyLive(Map<String, dynamic> data) {
-    busStatus = (data['busStatus'] ?? 'INACTIVE').toString();
+    final statusStr = (data['busStatus'] ?? 'INACTIVE').toString();
+    busStatus = statusStr;
     final trip = data['trip'];
     if (trip is Map) {
       _applyTripFields(Map<String, dynamic>.from(trip));
-    } else {
+    } else if (statusStr == 'INACTIVE') {
       busLatLng = null;
       currentStop = null;
       nextStop = null;
@@ -299,7 +327,15 @@ class LiveProvider extends ChangeNotifier {
     if (loc is Map) {
       final lat = (loc['latitude'] as num?)?.toDouble();
       final lng = (loc['longitude'] as num?)?.toDouble();
-      if (lat != null && lng != null) busLatLng = LatLng(lat, lng);
+      if (lat != null && lng != null && (lat != 0 || lng != 0)) {
+        busLatLng = LatLng(lat, lng);
+      }
+    } else if (data['latitude'] != null && data['longitude'] != null) {
+      final lat = (data['latitude'] as num?)?.toDouble();
+      final lng = (data['longitude'] as num?)?.toDouble();
+      if (lat != null && lng != null && (lat != 0 || lng != 0)) {
+        busLatLng = LatLng(lat, lng);
+      }
     }
 
     _resolveSequenceStops();
