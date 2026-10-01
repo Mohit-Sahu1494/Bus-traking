@@ -16,5 +16,6 @@ router.post('/trip/pause', c.pause);
 router.post('/trip/resume', c.resume);
 router.post('/trip/end', c.end);
 router.post('/stop/skip', c.skip);
+router.post('/stop/reach', c.reach);
 
 module.exports = router;

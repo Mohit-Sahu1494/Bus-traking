@@ -13,7 +13,7 @@ void main() {
       expect(AppConfig.criminology, const LatLng(23.823539099418205, 78.78306732002264));
       expect(AppConfig.centerPoint, const LatLng(23.826803182208682, 78.77196190502646));
       expect(AppConfig.boysHostel, const LatLng(23.821345891404626, 78.7700572856471));
-      expect(AppConfig.girlsHostel, const LatLng(23.830215356429985, 78.77840351072815));
+      expect(AppConfig.girlsHostel, const LatLng(23.831420054329637, 78.7816975423115));
     });
 
     test('Route order has exactly 7 stops with unique sequences', () {

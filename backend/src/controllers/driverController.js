@@ -7,6 +7,7 @@ const {
   resumeTrip,
   endTrip,
   skipNextStop,
+  reachNextStop,
   driverLiveState,
   assignedDriverContext,
 } = require('../services/tripService');
@@ -90,6 +91,12 @@ const end = asyncHandler(async (req, res) => {
 const skip = asyncHandler(async (req, res) => {
   const body = parse(skipStopSchema, req.body || {});
   const data = await skipNextStop(req.user, body.routeStopId);
+  res.json({ success: true, data });
+});
+
+const reach = asyncHandler(async (req, res) => {
+  const body = req.body || {};
+  const data = await reachNextStop(req.user, body.routeStopId);
   res.json({ success: true, data });
 });
 
@@ -228,6 +235,7 @@ module.exports = {
   resume,
   end,
   skip,
+  reach,
   listBuses,
   assignBus,
 };

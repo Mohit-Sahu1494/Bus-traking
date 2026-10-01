@@ -2,7 +2,7 @@ const { Server } = require('socket.io');
 const { env } = require('../config/env');
 const { verifyToken } = require('../utils/jwt');
 const { setIo } = require('./emitter');
-const { handleDriverLocation } = require('../services/locationService');
+const { handleDriverLocation, handleDriverDisconnect } = require('../services/locationService');
 const { parse, locationSchema } = require('../validators');
 const { ROLES, SOCKET_EVENTS } = require('../utils/constants');
 
@@ -80,7 +80,15 @@ function initSocket(httpServer) {
       }
     });
 
-    socket.on('disconnect', () => {});
+    socket.on('disconnect', async () => {
+      if (role === ROLES.DRIVER) {
+        // Check if driver has any other connected sockets
+        const socketsInRoom = io.sockets.adapter.rooms.get(`user:${sub}`);
+        if (!socketsInRoom || socketsInRoom.size === 0) {
+          await handleDriverDisconnect(sub);
+        }
+      }
+    });
   });
 
   return io;

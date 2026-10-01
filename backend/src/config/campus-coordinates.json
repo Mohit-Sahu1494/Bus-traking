@@ -6,7 +6,7 @@
     { "code": "CS_DEPT", "name": "Computer Science Department", "latitude": 23.824607044488115, "longitude": 78.78210767766332 },
     { "code": "CRIMINOLOGY", "name": "Criminology Department", "latitude": 23.823539099418205, "longitude": 78.78306732002264 },
     { "code": "BOYS_HOSTEL", "name": "Boys Hostel", "latitude": 23.821345891404626, "longitude": 78.7700572856471 },
-    { "code": "GIRLS_HOSTEL", "name": "Girls Hostel", "latitude": 23.830215356429985, "longitude": 78.77840351072815 }
+    { "code": "GIRLS_HOSTEL", "name": "Girls Hostel", "latitude": 23.831420054329637, "longitude": 78.7816975423115 }
   ],
   "routeSequences": [
     "CENTER_POINT",
@@ -23,7 +23,7 @@
     { "sequence": 3, "code": "CRIMINOLOGY", "name": "Criminology Department", "latitude": 23.823539099418205, "longitude": 78.78306732002264 },
     { "sequence": 4, "code": "CENTER_POINT", "name": "Center Point", "latitude": 23.82665450787519, "longitude": 78.77178170834694 },
     { "sequence": 5, "code": "BOYS_HOSTEL", "name": "Boys Hostel", "latitude": 23.821345891404626, "longitude": 78.7700572856471 },
-    { "sequence": 6, "code": "GIRLS_HOSTEL", "name": "Girls Hostel", "latitude": 23.830215356429985, "longitude": 78.77840351072815 },
+    { "sequence": 6, "code": "GIRLS_HOSTEL", "name": "Girls Hostel", "latitude": 23.831420054329637, "longitude": 78.7816975423115 },
     { "sequence": 7, "code": "CENTER_POINT", "name": "Center Point", "latitude": 23.82679396278914, "longitude": 78.77201469954832 }
   ]
 }

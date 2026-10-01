@@ -65,5 +65,15 @@ describe('trip state machine', () => {
     // Once currentSequence reaches 7, next is null (final destination reached)
     assert.equal(nextRouteStop(route, 7, []), null);
   });
+
+  it('verifies stopArrivalRadiusM default is 60m', () => {
+    const { env } = require('../config/env');
+    assert.equal(env.stopArrivalRadiusM, 60);
+  });
+
+  it('exports reachNextStop in tripService', () => {
+    const tripService = require('../services/tripService');
+    assert.equal(typeof tripService.reachNextStop, 'function');
+  });
 });
 

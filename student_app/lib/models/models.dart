@@ -75,6 +75,57 @@ class WaitingCount {
   }
 }
 
+class NotificationSettings {
+  NotificationSettings({
+    this.busApproaching = true,
+    this.busArrived = true,
+    this.stopSkipped = true,
+    this.tripEnded = true,
+    this.paused = true,
+  });
+
+  final bool busApproaching;
+  final bool busArrived;
+  final bool stopSkipped;
+  final bool tripEnded;
+  final bool paused;
+
+  factory NotificationSettings.fromJson(Map<String, dynamic>? json) {
+    if (json == null) return NotificationSettings();
+    return NotificationSettings(
+      busApproaching: json['busApproaching'] as bool? ?? true,
+      busArrived: json['busArrived'] as bool? ?? true,
+      stopSkipped: json['stopSkipped'] as bool? ?? true,
+      tripEnded: json['tripEnded'] as bool? ?? true,
+      paused: json['paused'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'busApproaching': busApproaching,
+        'busArrived': busArrived,
+        'stopSkipped': stopSkipped,
+        'tripEnded': tripEnded,
+        'paused': paused,
+      };
+
+  NotificationSettings copyWith({
+    bool? busApproaching,
+    bool? busArrived,
+    bool? stopSkipped,
+    bool? tripEnded,
+    bool? paused,
+  }) {
+    return NotificationSettings(
+      busApproaching: busApproaching ?? this.busApproaching,
+      busArrived: busArrived ?? this.busArrived,
+      stopSkipped: stopSkipped ?? this.stopSkipped,
+      tripEnded: tripEnded ?? this.tripEnded,
+      paused: paused ?? this.paused,
+    );
+  }
+}
+
 class StudentUser {
   StudentUser({
     required this.id,
@@ -83,7 +134,8 @@ class StudentUser {
     this.enrollmentNumber,
     this.pickupStop,
     this.isEmailVerified = false,
-  });
+    NotificationSettings? notificationSettings,
+  }) : notificationSettings = notificationSettings ?? NotificationSettings();
 
   final String id;
   final String name;
@@ -91,6 +143,7 @@ class StudentUser {
   final String? enrollmentNumber;
   final StopInfo? pickupStop;
   final bool isEmailVerified;
+  final NotificationSettings notificationSettings;
 
   factory StudentUser.fromJson(Map<String, dynamic> json) {
     StopInfo? pickup;
@@ -105,6 +158,9 @@ class StudentUser {
       enrollmentNumber: json['enrollmentNumber']?.toString(),
       pickupStop: pickup,
       isEmailVerified: json['isEmailVerified'] as bool? ?? false,
+      notificationSettings: NotificationSettings.fromJson(
+        json['notificationSettings'] as Map<String, dynamic>?,
+      ),
     );
   }
 
@@ -122,5 +178,6 @@ class StudentUser {
             'longitude': pickupStop!.longitude,
           },
         'isEmailVerified': isEmailVerified,
+        'notificationSettings': notificationSettings.toJson(),
       };
 }

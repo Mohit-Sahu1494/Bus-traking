@@ -108,11 +108,16 @@ void main() {
       await liveProvider.start('dummy-token');
     });
 
+    tearDown(() {
+      liveProvider.stop();
+    });
+
     test('Initializes with default route stops and INACTIVE bus before start', () {
       final unstarted = LiveProvider(mockApi, mockSocket, mockLocation);
       expect(unstarted.busStatus, 'INACTIVE');
       expect(unstarted.busLatLng, isNull);
       expect(unstarted.routeStops, isNotEmpty);
+      expect(unstarted.isBusOffline, isFalse);
     });
 
     test('Refresh acquires live trip data and updates bus position', () async {
@@ -120,6 +125,7 @@ void main() {
 
       expect(mockApi.lastGetPath, '/api/student/live');
       expect(liveProvider.busStatus, 'ACTIVE');
+      expect(liveProvider.isBusOffline, isFalse);
       expect(liveProvider.busNumber, 'BUS-04');
       expect(liveProvider.busLatLng, isNotNull);
       expect(liveProvider.busLatLng!.latitude, 23.8388);
@@ -127,18 +133,22 @@ void main() {
       expect(liveProvider.isRefreshing, isFalse);
     });
 
-    test('Preserves bus coordinates when status transitions to OFFLINE', () async {
+    test('Preserves bus coordinates when status transitions to OFFLINE and flags isBusOffline', () async {
       await liveProvider.refresh();
       expect(liveProvider.busLatLng, isNotNull);
 
-      // Now trigger socket event that bus is OFFLINE (heartbeat missed)
+      // Now trigger socket event that bus is OFFLINE (heartbeat missed or network lost)
       mockSocket.trigger('bus_status_updated', {
         'busStatus': 'OFFLINE',
         'busNumber': 'BUS-04',
+        'lastLocationAt': DateTime.now().subtract(const Duration(minutes: 2)).toIso8601String(),
       });
 
-      // Status is OFFLINE, but the marker coordinates are preserved!
+      // Status is OFFLINE, isBusOffline is true, etaLabel is Signal paused, but marker coordinates are preserved!
       expect(liveProvider.busStatus, 'OFFLINE');
+      expect(liveProvider.isBusOffline, isTrue);
+      expect(liveProvider.etaLabel, 'Signal paused');
+      expect(liveProvider.lastSeenText, contains('2m ago'));
       expect(liveProvider.busLatLng, isNotNull);
       expect(liveProvider.busLatLng!.latitude, 23.8388);
     });
@@ -150,6 +160,7 @@ void main() {
         'busNumber': 'BUS-04',
       });
       expect(liveProvider.busStatus, 'OFFLINE');
+      expect(liveProvider.isBusOffline, isTrue);
 
       // GPS update arrives from driver
       mockSocket.trigger('driver_location_updated', {
@@ -158,6 +169,7 @@ void main() {
       });
 
       expect(liveProvider.busStatus, 'ACTIVE');
+      expect(liveProvider.isBusOffline, isFalse);
       expect(liveProvider.busLatLng!.latitude, 23.8400);
       expect(liveProvider.busLatLng!.longitude, 78.7760);
     });

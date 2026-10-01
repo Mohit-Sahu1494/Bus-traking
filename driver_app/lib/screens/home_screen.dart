@@ -22,6 +22,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   final MapController _mapController = MapController();
+  bool _isMapExpanded = false;
 
   static const LatLng _campusCenter = LatLng(
     AppConfig.campusCenterLat,
@@ -87,7 +88,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Active segment to next stop (highlighted royal blue)
     if (trip.isActive && trip.live?['nextStop'] != null) {
       final nextSeq = (trip.live!['nextStop']['sequence'] as num?)?.toInt() ?? (trip.currentSequence + 1);
-      final fromSeq = trip.currentSequence > 0 ? trip.currentSequence : (nextSeq > 1 ? nextSeq - 1 : 1);
+      final fromSeq = (trip.currentSequence > 0 && trip.currentSequence < nextSeq)
+          ? trip.currentSequence
+          : (nextSeq > 1 ? nextSeq - 1 : 1);
       final activeSegment = routeService.getActiveRoute(
         busPos: trip.currentLatLng,
         fromSeq: fromSeq,
@@ -410,7 +413,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
         // Route Map Preview Card (Sections 23, 24)
         Container(
-          height: 220,
+          height: 320,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppTheme.border),
@@ -704,6 +707,28 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   ),
                 ),
               ],
+
+              if (!trip.isFinalStopReached && trip.nextStopName != null) ...[
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  height: 42,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: AppTheme.emerald,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      padding: const EdgeInsets.symmetric(horizontal: 14),
+                    ),
+                    icon: const Icon(Icons.check_circle_outline, size: 18),
+                    label: Text(
+                      'Reached $nextName (Confirm Arrival)',
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    onPressed: () => _confirmReach(context, trip),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -711,8 +736,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         const SizedBox(height: 16),
 
         // Live Road-Following Map Cockpit (Section 23, 24)
-        Container(
-          height: 230,
+        AnimatedContainer(
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeInOut,
+          height: _isMapExpanded ? 520 : 380,
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             border: Border.all(color: AppTheme.border),
@@ -736,6 +763,45 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   PolylineLayer(polylines: _buildPolylines(trip)),
                   MarkerLayer(markers: _buildMarkers(trip)),
                 ],
+              ),
+              Positioned(
+                top: 10,
+                right: 10,
+                child: Material(
+                  color: Colors.white.withValues(alpha: 0.94),
+                  borderRadius: BorderRadius.circular(10),
+                  elevation: 2,
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(10),
+                    onTap: () {
+                      setState(() {
+                        _isMapExpanded = !_isMapExpanded;
+                      });
+                    },
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            _isMapExpanded ? Icons.fullscreen_exit_rounded : Icons.fullscreen_rounded,
+                            size: 18,
+                            color: AppTheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            _isMapExpanded ? 'Normal' : 'Expand',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: AppTheme.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               ),
               Positioned(
                 bottom: 10,
@@ -880,9 +946,32 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
 
     if (trip.isActive) {
+      final nextName = trip.nextStopName;
+      final showReach = !trip.isFinalStopReached && nextName != null;
+
       return Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (showReach) ...[
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: AppTheme.emerald,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.check_circle_outline, size: 22),
+                label: Text(
+                  'ARRIVED AT ${nextName.toUpperCase()}',
+                  style: const TextStyle(fontSize: 14, letterSpacing: 0.5, fontWeight: FontWeight.w800),
+                  overflow: TextOverflow.ellipsis,
+                ),
+                onPressed: () => _confirmReach(context, trip),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Row(
             children: [
               Expanded(
@@ -1142,6 +1231,26 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         );
       }
     }
+  }
+
+  Future<void> _confirmReach(BuildContext context, TripProvider trip) async {
+    final nextName = trip.nextStopName ?? 'the next stop';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Arrived at $nextName?'),
+        content: Text('Confirm that you have arrived at $nextName? This will mark this stop as reached and notify students.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppTheme.emerald),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm Arrived'),
+          ),
+        ],
+      ),
+    );
+    if (ok == true && context.mounted) await _run(context, trip.reachStop);
   }
 
   Future<void> _confirmSkip(BuildContext context, TripProvider trip) async {

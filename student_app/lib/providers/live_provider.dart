@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
@@ -18,6 +19,9 @@ class LiveProvider extends ChangeNotifier {
   String busStatus = 'INACTIVE';
   String? busNumber;
   LatLng? busLatLng;
+  DateTime? lastLocationTime;
+  bool isLocationStale = false;
+  Timer? _freshnessTimer;
   LatLng? studentLatLng;
   RouteStopInfo? currentStop;
   RouteStopInfo? nextStop;
@@ -37,11 +41,27 @@ class LiveProvider extends ChangeNotifier {
   bool isTogglingWaiting = false;
   bool isRefreshing = false;
 
+  bool get isBusOffline => busStatus == 'OFFLINE' || isLocationStale;
+
+  String get lastSeenText {
+    if (lastLocationTime == null) return 'recently';
+    final diff = DateTime.now().difference(lastLocationTime!);
+    if (diff.inSeconds < 15) return 'just now';
+    if (diff.inSeconds < 60) return '${diff.inSeconds}s ago';
+    if (diff.inMinutes == 1) return '1 min ago';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    final h = lastLocationTime!.hour % 12 == 0 ? 12 : lastLocationTime!.hour % 12;
+    final ampm = lastLocationTime!.hour >= 12 ? 'PM' : 'AM';
+    final m = lastLocationTime!.minute.toString().padLeft(2, '0');
+    return '$h:$m $ampm';
+  }
+
   int get unreadNotificationsCount =>
       notifications.where((n) => n['readAt'] == null).length;
 
   Future<void> start(String token) async {
     _bindSockets();
+    _startFreshnessWatchdog();
     await _socket.connect(token);
     await Future.wait([
       refresh(),
@@ -165,7 +185,16 @@ class LiveProvider extends ChangeNotifier {
   }
 
   void stop() {
+    _freshnessTimer?.cancel();
+    _freshnessTimer = null;
     _socket.disconnect();
+  }
+
+  @override
+  void dispose() {
+    _freshnessTimer?.cancel();
+    _freshnessTimer = null;
+    super.dispose();
   }
 
   void _bindSockets() {
@@ -181,6 +210,16 @@ class LiveProvider extends ChangeNotifier {
         case 'bus_status_updated':
           busStatus = (data['busStatus'] ?? data['status'] ?? busStatus).toString();
           busNumber = data['busNumber']?.toString() ?? busNumber;
+          if (busStatus == 'OFFLINE') {
+            isLocationStale = true;
+            if (data['lastLocationAt'] != null) {
+              try {
+                lastLocationTime = DateTime.parse(data['lastLocationAt'].toString());
+              } catch (_) {}
+            }
+          } else if (busStatus == 'ACTIVE') {
+            isLocationStale = false;
+          }
           pauseMessage = null;
           _applyTripFields(data);
           break;
@@ -191,6 +230,8 @@ class LiveProvider extends ChangeNotifier {
         case 'driver_trip_ended':
           busStatus = 'INACTIVE';
           busLatLng = null;
+          lastLocationTime = null;
+          isLocationStale = false;
           currentStop = null;
           nextStop = null;
           pauseMessage = null;
@@ -206,7 +247,14 @@ class LiveProvider extends ChangeNotifier {
           final lng = (data['longitude'] as num?)?.toDouble();
           if (lat != null && lng != null && (lat != 0 || lng != 0)) {
             busLatLng = LatLng(lat, lng);
+            lastLocationTime = DateTime.now();
+            isLocationStale = false;
             if (busStatus == 'OFFLINE') busStatus = 'ACTIVE';
+          }
+          if (data['at'] != null) {
+            try {
+              lastLocationTime = DateTime.parse(data['at'].toString());
+            } catch (_) {}
           }
           if (data['currentSequence'] != null) {
             currentSequence = (data['currentSequence'] as num).toInt();
@@ -300,7 +348,15 @@ class LiveProvider extends ChangeNotifier {
 
   void _applyTripFields(Map<String, dynamic> data) {
     busNumber = data['busNumber']?.toString() ?? busNumber;
-    if (data['busStatus'] != null) busStatus = data['busStatus'].toString();
+    if (data['busStatus'] != null) {
+      busStatus = data['busStatus'].toString();
+      isLocationStale = busStatus == 'OFFLINE';
+    }
+    if (data['lastLocationAt'] != null) {
+      try {
+        lastLocationTime = DateTime.parse(data['lastLocationAt'].toString());
+      } catch (_) {}
+    }
     if (data['etaLabel'] != null) etaLabel = data['etaLabel'].toString();
     if (data['currentStop'] is Map) {
       currentStop = RouteStopInfo.fromJson(Map<String, dynamic>.from(data['currentStop'] as Map));
@@ -331,11 +387,28 @@ class LiveProvider extends ChangeNotifier {
       if (lat != null && lng != null && (lat != 0 || lng != 0)) {
         busLatLng = LatLng(lat, lng);
       }
+      if (loc['at'] != null) {
+        try {
+          lastLocationTime = DateTime.parse(loc['at'].toString());
+        } catch (_) {}
+      }
     } else if (data['latitude'] != null && data['longitude'] != null) {
       final lat = (data['latitude'] as num?)?.toDouble();
       final lng = (data['longitude'] as num?)?.toDouble();
       if (lat != null && lng != null && (lat != 0 || lng != 0)) {
         busLatLng = LatLng(lat, lng);
+      }
+      if (data['at'] != null) {
+        try {
+          lastLocationTime = DateTime.parse(data['at'].toString());
+        } catch (_) {}
+      }
+    }
+
+    if (busStatus == 'ACTIVE' && lastLocationTime != null) {
+      if (DateTime.now().difference(lastLocationTime!).inSeconds > 25) {
+        busStatus = 'OFFLINE';
+        isLocationStale = true;
       }
     }
 
@@ -378,6 +451,10 @@ class LiveProvider extends ChangeNotifier {
 
   /// Real-time distance and ETA update using real bus GPS location
   void _updateLiveEtaAndDistance([String? backendEta]) {
+    if (isBusOffline) {
+      etaLabel = 'Signal paused';
+      return;
+    }
     if (busLatLng == null || nextStop == null) {
       distanceToNextStopM = null;
       if (backendEta != null && backendEta.isNotEmpty) {
@@ -389,7 +466,7 @@ class LiveProvider extends ChangeNotifier {
     final distM = const Distance().as(LengthUnit.Meter, busLatLng!, nextLatLng);
     distanceToNextStopM = distM;
 
-    if (distM <= 45) {
+    if (distM <= 60) {
       etaLabel = 'Arriving now';
     } else if (distM <= 200) {
       etaLabel = '< 1 min (${distM.round()}m)';
@@ -402,6 +479,25 @@ class LiveProvider extends ChangeNotifier {
         etaLabel = '$mins mins ($kmStr km)';
       }
     }
+  }
+
+  void _startFreshnessWatchdog() {
+    _freshnessTimer?.cancel();
+    _freshnessTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      if (busStatus == 'ACTIVE' && lastLocationTime != null) {
+        final elapsed = DateTime.now().difference(lastLocationTime!).inSeconds;
+        if (elapsed > 25) {
+          busStatus = 'OFFLINE';
+          isLocationStale = true;
+          etaLabel = 'Signal paused';
+          notifyListeners();
+          return;
+        }
+      }
+      if (isBusOffline && busLatLng != null) {
+        notifyListeners();
+      }
+    });
   }
 
   Future<void> _startStudentGps() async {

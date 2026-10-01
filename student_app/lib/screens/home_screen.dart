@@ -151,31 +151,43 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     // Finds previous stop sequence (or nextStop.sequence - 1)
     final fromSeq = (currentSeq > 0 && currentSeq < nextStop.sequence)
         ? currentSeq
-        : (nextStop.sequence - 1);
+        : (nextStop.sequence > 1 ? nextStop.sequence - 1 : 1);
     final activeRoadPoints = routeService.getActiveRoute(
       busPos: busPos,
       fromSeq: fromSeq,
       toSeq: nextStop.sequence,
     );
 
+    final isOffline = live.isBusOffline;
     if (activeRoadPoints.length >= 2) {
-      // Outer glow underlay for prominent visibility
-      polylines.add(Polyline(
-        points: activeRoadPoints,
-        color: const Color(0x551E3A8A), // dark blue glow
-        strokeWidth: 10.0,
-        strokeCap: StrokeCap.round,
-        strokeJoin: StrokeJoin.round,
-      ));
+      if (isOffline) {
+        // Muted dashed/subdued line when bus is offline
+        polylines.add(Polyline(
+          points: activeRoadPoints,
+          color: const Color(0xFF94A3B8), // muted slate grey
+          strokeWidth: 4.0,
+          strokeCap: StrokeCap.round,
+          strokeJoin: StrokeJoin.round,
+        ));
+      } else {
+        // Outer glow underlay for prominent visibility
+        polylines.add(Polyline(
+          points: activeRoadPoints,
+          color: const Color(0x551E3A8A), // dark blue glow
+          strokeWidth: 10.0,
+          strokeCap: StrokeCap.round,
+          strokeJoin: StrokeJoin.round,
+        ));
 
-      // Core highlighted route line from bus to next stop in bold Dark Blue
-      polylines.add(Polyline(
-        points: activeRoadPoints,
-        color: const Color(0xFF1E3A8A), // deep dark blue
-        strokeWidth: 6.0,
-        strokeCap: StrokeCap.round,
-        strokeJoin: StrokeJoin.round,
-      ));
+        // Core highlighted route line from bus to next stop in bold Dark Blue
+        polylines.add(Polyline(
+          points: activeRoadPoints,
+          color: const Color(0xFF1E3A8A), // deep dark blue
+          strokeWidth: 6.0,
+          strokeCap: StrokeCap.round,
+          strokeJoin: StrokeJoin.round,
+        ));
+      }
     }
 
     return polylines;
@@ -689,6 +701,77 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 ),
               ),
 
+            // Driver Network Offline Warning Banner
+            if (live.isBusOffline && live.busLatLng != null && live.busStatus != 'INACTIVE')
+              Container(
+                width: double.infinity,
+                margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: const Color(0xFFFECACA), width: 1.2),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x0FDC2626), blurRadius: 4, offset: Offset(0, 2)),
+                  ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.only(top: 2),
+                      child: Icon(Icons.wifi_off_rounded, color: AppTheme.coral, size: 20),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              const Text(
+                                'Driver Network Offline',
+                                style: TextStyle(
+                                  color: Color(0xFF991B1B),
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFFEE2E2),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Last seen: ${live.lastSeenText}',
+                                  style: const TextStyle(
+                                    color: Color(0xFFB91C1C),
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 3),
+                          const Text(
+                            'Map is displaying the last known coordinates. The bus is not actively broadcasting live GPS right now.',
+                            style: TextStyle(
+                              color: Color(0xFF7F1D1D),
+                              fontSize: 11.5,
+                              fontWeight: FontWeight.w500,
+                              height: 1.3,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             // Map Area (Map-First)
             Expanded(
               child: Stack(
@@ -760,15 +843,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               ),
                             ),
 
-                          // Active Bus Location Marker
+                          // Bus Location Marker (Active or Last Known)
                           if (live.busLatLng != null && live.busStatus != 'INACTIVE')
                             Marker(
                               point: live.busLatLng!,
-                              width: 60,
-                              height: 60,
+                              width: live.isBusOffline ? 120 : 64,
+                              height: 64,
                               child: _BusMarker(
                                 busNumber: live.busNumber ?? 'BUS-04',
-                                isStale: live.busStatus == 'OFFLINE',
+                                isStale: live.isBusOffline,
+                                lastSeenText: live.lastSeenText,
                               ),
                             ),
                         ],
@@ -1002,41 +1086,69 @@ class _BusMarker extends StatelessWidget {
   const _BusMarker({
     required this.busNumber,
     this.isStale = false,
+    this.lastSeenText,
   });
 
   final String busNumber;
   final bool isStale;
+  final String? lastSeenText;
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = isStale ? const Color(0xFF64748B) : const Color(0xFF1E3A8A);
-    final badgeColor = isStale ? const Color(0xFF475569) : AppTheme.navy;
+    final bgColor = isStale ? const Color(0xFFDC2626) : const Color(0xFF1E3A8A);
+    final badgeColor = isStale ? const Color(0xFF991B1B) : AppTheme.navy;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(
-          width: 38,
-          height: 38,
-          decoration: BoxDecoration(
-            color: bgColor,
-            shape: BoxShape.circle,
-            border: Border.all(color: Colors.white, width: 2.5),
-            boxShadow: [
-              BoxShadow(
-                color: isStale ? const Color(0x33000000) : const Color(0x401E3A8A),
-                blurRadius: 8,
-                offset: const Offset(0, 3),
+        Stack(
+          alignment: Alignment.center,
+          clipBehavior: Clip.none,
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: bgColor,
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isStale ? const Color(0xFFFECACA) : Colors.white,
+                  width: 2.5,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: isStale ? const Color(0x55DC2626) : const Color(0x401E3A8A),
+                    blurRadius: 8,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
               ),
-            ],
-          ),
-          child: Center(
-            child: Icon(
-              Icons.directions_bus_rounded,
-              color: isStale ? Colors.white70 : Colors.white,
-              size: 21,
+              child: const Center(
+                child: Icon(
+                  Icons.directions_bus_rounded,
+                  color: Colors.white,
+                  size: 21,
+                ),
+              ),
             ),
-          ),
+            if (isStale)
+              Positioned(
+                right: -2,
+                top: -2,
+                child: Container(
+                  padding: const EdgeInsets.all(2.5),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFF991B1B),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(
+                    Icons.wifi_off_rounded,
+                    color: Colors.white,
+                    size: 11,
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: 2),
         Container(
@@ -1044,12 +1156,17 @@ class _BusMarker extends StatelessWidget {
           decoration: BoxDecoration(
             color: badgeColor,
             borderRadius: BorderRadius.circular(4),
+            border: isStale ? Border.all(color: const Color(0xFFFECACA), width: 0.8) : null,
             boxShadow: const [
               BoxShadow(color: Color(0x26000000), blurRadius: 3, offset: Offset(0, 1)),
             ],
           ),
           child: Text(
-            isStale ? '$busNumber • OFFLINE' : busNumber,
+            isStale
+                ? '$busNumber • LAST KNOWN (${lastSeenText ?? 'OFFLINE'})'
+                : busNumber,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(
               color: Colors.white,
               fontSize: 8.5,
@@ -1078,8 +1195,9 @@ class _NextStopCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isOffline = live.isBusOffline;
     final nextName = live.nextStop?.stop.name ??
-        (live.busStatus == 'ACTIVE' ? 'Final Stop reached' : 'No active bus trip');
+        (live.busStatus == 'ACTIVE' ? 'Final Stop reached' : (isOffline ? 'Tracking Paused' : 'No active bus trip'));
     final currentName = live.currentStop?.stop.name;
     final waiting = live.waitingAt(pickupName);
 
@@ -1167,56 +1285,84 @@ class _NextStopCard extends StatelessWidget {
               if (live.nextStop != null) ...[
                 const SizedBox(width: 6),
                 Flexible(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
-                    decoration: BoxDecoration(
-                      color: isEtaCalculating ? const Color(0xFFF1F5F9) : const Color(0xFFEFF6FF),
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(
-                        color: isEtaCalculating ? const Color(0xFFE2E8F0) : const Color(0xFFBFDBFE),
-                      ),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (isEtaCalculating) ...[
-                          const SizedBox(
-                            width: 9,
-                            height: 9,
-                            child: CircularProgressIndicator(strokeWidth: 1.5, color: AppTheme.muted),
+                  child: isOffline
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3.5),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFFEF2F2),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(color: const Color(0xFFFECACA)),
                           ),
-                          const SizedBox(width: 5),
-                          const Flexible(
-                            child: Text(
-                              'ETA Calculating...',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                color: AppTheme.muted,
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.wifi_off_rounded, size: 12, color: AppTheme.coral),
+                              SizedBox(width: 4),
+                              Flexible(
+                                child: Text(
+                                  'Signal Paused',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w700,
+                                    color: AppTheme.coral,
+                                  ),
+                                ),
                               ),
+                            ],
+                          ),
+                        )
+                      : Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 3.5),
+                          decoration: BoxDecoration(
+                            color: isEtaCalculating ? const Color(0xFFF1F5F9) : const Color(0xFFEFF6FF),
+                            borderRadius: BorderRadius.circular(999),
+                            border: Border.all(
+                              color: isEtaCalculating ? const Color(0xFFE2E8F0) : const Color(0xFFBFDBFE),
                             ),
                           ),
-                        ] else ...[
-                          const Icon(Icons.access_time_rounded, size: 12, color: AppTheme.accent),
-                          const SizedBox(width: 4),
-                          Flexible(
-                            child: Text(
-                              '◷ $etaDisplay',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                fontWeight: FontWeight.w800,
-                                color: AppTheme.accent,
-                              ),
-                            ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (isEtaCalculating) ...[
+                                const SizedBox(
+                                  width: 9,
+                                  height: 9,
+                                  child: CircularProgressIndicator(strokeWidth: 1.5, color: AppTheme.muted),
+                                ),
+                                const SizedBox(width: 5),
+                                const Flexible(
+                                  child: Text(
+                                    'ETA Calculating...',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: AppTheme.muted,
+                                    ),
+                                  ),
+                                ),
+                              ] else ...[
+                                const Icon(Icons.access_time_rounded, size: 12, color: AppTheme.accent),
+                                const SizedBox(width: 4),
+                                Flexible(
+                                  child: Text(
+                                    '◷ $etaDisplay',
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      fontSize: 11.5,
+                                      fontWeight: FontWeight.w800,
+                                      color: AppTheme.accent,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
                           ),
-                        ],
-                      ],
-                    ),
-                  ),
+                        ),
                 ),
               ],
             ],
@@ -1240,17 +1386,55 @@ class _NextStopCard extends StatelessWidget {
             const SizedBox(height: 4),
             Row(
               children: [
-                const Icon(Icons.near_me_outlined, size: 13, color: AppTheme.muted),
+                Icon(
+                  isOffline ? Icons.history_rounded : Icons.near_me_outlined,
+                  size: 13,
+                  color: isOffline ? AppTheme.coral : AppTheme.muted,
+                ),
                 const SizedBox(width: 4),
-                Text(
-                  '📍 $distanceText',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.muted,
-                    fontWeight: FontWeight.w600,
+                Expanded(
+                  child: Text(
+                    isOffline
+                        ? '📍 ~$distanceText • Last seen ${live.lastSeenText} (Not live)'
+                        : '📍 $distanceText',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isOffline ? const Color(0xFFB91C1C) : AppTheme.muted,
+                      fontWeight: isOffline ? FontWeight.w700 : FontWeight.w600,
+                    ),
                   ),
                 ),
               ],
+            ),
+          ],
+
+          if (isOffline) ...[
+            const SizedBox(height: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+              decoration: BoxDecoration(
+                color: const Color(0xFFFEF2F2),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFFECACA), width: 0.8),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, size: 15, color: AppTheme.coral),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Driver network disconnected. Live tracking paused.',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF991B1B),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
 

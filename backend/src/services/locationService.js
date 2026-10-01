@@ -151,39 +151,54 @@ async function detectArrival(trip, location) {
 }
 
 async function checkTripDelay(trip, location, next) {
-  if (!next || !trip.startedAt) return;
-  const now = Date.now();
-  const elapsedMinutes = (now - new Date(trip.startedAt).getTime()) / 60000;
+  // Extra notifications disabled: only notify student when bus is approaching their selected pickup stop
+}
 
-  // If trip running for over 12 minutes and progress is stalled or delay threshold crossed
-  if (elapsedMinutes >= 12 && trip.currentSequence <= 2) {
-    const pickupStudents = await studentsForPickup(next.stop._id);
-    createAndPush({
-      userIds: pickupStudents.map((s) => s._id),
-      title: '⏱ Bus delayed',
-      body: `${trip.bus.busNumber} is currently delayed. Expected arrival may be later than usual.`,
-      type: 'TRIP_DELAYED',
-      data: {
-        tripId: String(trip._id),
-        nextStop: next.stop.name,
-      },
-      trip: trip._id,
-      dedupKey: `delay-${trip._id}`,
-    }).catch(() => {});
+async function handleDriverDisconnect(driverUserId) {
+  try {
+    const { Driver, Trip } = require('../models');
+    const driver = await Driver.findOne({ user: driverUserId }).populate('assignedBus');
+    if (!driver?.assignedBus) return;
+
+    const trip = await Trip.findOne({
+      driver: driver._id,
+      status: { $in: [TRIP_STATUS.ACTIVE, TRIP_STATUS.PAUSED] },
+    }).populate('bus');
+    if (!trip || !trip.bus) return;
+
+    if (trip.bus.status !== BUS_STATUS.OFFLINE) {
+      trip.bus.status = BUS_STATUS.OFFLINE;
+      await trip.bus.save();
+      emitCampus(SOCKET_EVENTS.BUS_STATUS_UPDATED, {
+        busId: String(trip.bus._id),
+        busNumber: trip.bus.busNumber,
+        status: BUS_STATUS.OFFLINE,
+        tripStatus: trip.status,
+        lastLocationAt: trip.bus.lastLocationAt || new Date(),
+        reason: 'DRIVER_DISCONNECTED',
+      });
+    }
+  } catch (err) {
+    console.error('Error handling driver disconnect:', err.message);
   }
 }
 
 async function startHeartbeatMonitor() {
-  const intervalMs = Math.max(5000, (env.busStaleTimeoutSec * 1000) / 3);
+  const staleTimeoutSec = env.busStaleTimeoutSec || 25;
+  const intervalMs = Math.max(3000, Math.floor((staleTimeoutSec * 1000) / 4));
   setInterval(async () => {
     try {
       const activeBuses = await Bus.find({
         status: { $in: [BUS_STATUS.ACTIVE, BUS_STATUS.PAUSED] },
       });
-      const cutoff = Date.now() - env.busStaleTimeoutSec * 1000;
+      const cutoff = Date.now() - staleTimeoutSec * 1000;
       for (const bus of activeBuses) {
-        const last = bus.lastHeartbeatAt ? bus.lastHeartbeatAt.getTime() : 0;
-        if (last && last < cutoff && bus.status !== BUS_STATUS.OFFLINE) {
+        const last = bus.lastHeartbeatAt
+          ? bus.lastHeartbeatAt.getTime()
+          : bus.lastLocationAt
+            ? bus.lastLocationAt.getTime()
+            : 0;
+        if ((!last || last < cutoff) && bus.status !== BUS_STATUS.OFFLINE) {
           bus.status = BUS_STATUS.OFFLINE;
           await bus.save();
           emitCampus(SOCKET_EVENTS.BUS_STATUS_UPDATED, {
@@ -191,6 +206,8 @@ async function startHeartbeatMonitor() {
             busNumber: bus.busNumber,
             status: BUS_STATUS.OFFLINE,
             tripStatus: bus.activeTrip ? TRIP_STATUS.ACTIVE : TRIP_STATUS.NOT_STARTED,
+            lastLocationAt: bus.lastLocationAt || bus.lastHeartbeatAt || null,
+            reason: 'STALE_HEARTBEAT',
           });
         }
       }
@@ -200,4 +217,4 @@ async function startHeartbeatMonitor() {
   }, intervalMs).unref();
 }
 
-module.exports = { handleDriverLocation, startHeartbeatMonitor };
+module.exports = { handleDriverLocation, handleDriverDisconnect, startHeartbeatMonitor };

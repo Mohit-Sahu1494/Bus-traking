@@ -189,6 +189,17 @@ class AuthProvider extends ChangeNotifier {
     await refreshProfile();
   }
 
+  Future<void> updateNotificationSettings(Map<String, bool> settings) async {
+    final data = await _api.send(
+      'PATCH',
+      '/api/student/profile',
+      body: {'notificationSettings': settings},
+    );
+    user = StudentUser.fromJson(Map<String, dynamic>.from(data as Map));
+    await _api.saveUserData(jsonEncode(user!.toJson()));
+    notifyListeners();
+  }
+
   Future<void> logout() async {
     try {
       final token = FcmService().currentToken;

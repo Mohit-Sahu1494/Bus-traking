@@ -54,11 +54,16 @@ async function snapshot(trip) {
     busId: String(trip.bus._id || trip.bus),
     busNumber: trip.bus.busNumber,
     busStatus:
-      trip.status === TRIP_STATUS.PAUSED
-        ? BUS_STATUS.PAUSED
-        : trip.status === TRIP_STATUS.ACTIVE
-          ? BUS_STATUS.ACTIVE
-          : BUS_STATUS.INACTIVE,
+      trip.bus?.status === BUS_STATUS.OFFLINE
+        ? BUS_STATUS.OFFLINE
+        : trip.status === TRIP_STATUS.PAUSED
+          ? BUS_STATUS.PAUSED
+          : trip.status === TRIP_STATUS.ACTIVE
+            ? BUS_STATUS.ACTIVE
+            : BUS_STATUS.INACTIVE,
+    lastLocationAt: trip.bus?.lastLocationAt
+      ? new Date(trip.bus.lastLocationAt).toISOString()
+      : (progress.location?.at || null),
     currentSequence: trip.currentSequence,
     skippedSequences: trip.skippedSequences,
     completedSequences: trip.completedSequences,
@@ -201,25 +206,6 @@ async function startTrip(user, initialCoords = null) {
   emitTrip(SOCKET_EVENTS.DRIVER_TRIP_STARTED, state);
   emitCampus(SOCKET_EVENTS.ROUTE_UPDATED, { routeStops: state.routeStops });
 
-  // Asynchronous non-blocking push notification dispatch
-  User.find({ role: 'STUDENT' })
-    .select('_id')
-    .then((students) => {
-      if (!students.length) return;
-      return createAndPush({
-        userIds: students.map((s) => s._id),
-        title: `${bus.busNumber} is active`,
-        body: 'Campus bus trip has started. Track it live on the map.',
-        type: 'TRIP_STARTED',
-        data: { tripId: String(trip._id), busNumber: bus.busNumber },
-        trip: trip._id,
-        dedupKey: `trip-start-${trip._id}`,
-      });
-    })
-    .catch((err) => {
-      console.error('Background trip start notification failed:', err.message);
-    });
-
   return state;
 }
 
@@ -243,18 +229,6 @@ async function pauseTrip(user, reason) {
   const state = await snapshot(trip);
   emitTrip(SOCKET_EVENTS.DRIVER_TRIP_PAUSED, state);
 
-  const students = await User.find({ role: 'STUDENT' }).select('_id');
-  await createAndPush({
-    userIds: students.map((s) => s._id),
-    title: '⏸ Bus paused',
-    body: `${trip.bus.busNumber} has temporarily paused its trip.${reason ? ` (${reason})` : ''}`,
-    type: 'TRIP_PAUSED',
-    data: { reason: reason || '', tripId: String(trip._id) },
-    trip: trip._id,
-    settingKey: 'paused',
-    dedupKey: `pause-${trip._id}-${Math.floor(Date.now() / 60000)}`,
-  });
-
   return state;
 }
 
@@ -277,18 +251,6 @@ async function resumeTrip(user) {
   await persistEvent(trip, TRIP_EVENT_TYPES.RESUMED);
   const state = await snapshot(trip);
   emitTrip(SOCKET_EVENTS.DRIVER_TRIP_RESUMED, state);
-
-  const students = await User.find({ role: 'STUDENT' }).select('_id');
-  await createAndPush({
-    userIds: students.map((s) => s._id),
-    title: '▶️ Bus resumed',
-    body: `${trip.bus.busNumber} has resumed its trip.`,
-    type: 'TRIP_RESUMED',
-    data: { tripId: String(trip._id) },
-    trip: trip._id,
-    settingKey: 'paused',
-    dedupKey: `resume-${trip._id}-${Math.floor(Date.now() / 60000)}`,
-  });
 
   return state;
 }
@@ -333,18 +295,6 @@ async function endTrip(user, cancelled = false) {
     skippedSequences: trip.skippedSequences,
   };
   emitTrip(SOCKET_EVENTS.DRIVER_TRIP_ENDED, state);
-
-  const students = await User.find({ role: 'STUDENT' }).select('_id');
-  await createAndPush({
-    userIds: students.map((s) => s._id),
-    title: 'Trip ended',
-    body: `${trip.bus.busNumber} has completed this trip.`,
-    type: 'TRIP_ENDED',
-    data: { tripId: String(trip._id) },
-    trip: trip._id,
-    settingKey: 'tripEnded',
-    dedupKey: `end-${trip._id}`,
-  });
 
   return state;
 }
@@ -425,6 +375,30 @@ async function skipNextStop(user, routeStopId) {
   return state;
 }
 
+async function reachNextStop(user, routeStopId) {
+  const driver = await assignedDriverContext(user);
+  const trip = await Trip.findOne({
+    driver: driver._id,
+    status: TRIP_STATUS.ACTIVE,
+  }).populate('bus');
+  if (!trip) throw new AppError('Start a trip before marking a stop reached.', 400, 'NO_ACTIVE_TRIP');
+
+  const routeStops = await loadRouteStops(trip.route);
+  const next = nextRouteStop(routeStops, trip.currentSequence, trip.skippedSequences);
+  if (!next) {
+    throw new AppError('There is no upcoming stop to mark reached.', 400, 'NO_NEXT_STOP');
+  }
+  if (routeStopId && String(next._id) !== String(routeStopId)) {
+    throw new AppError('You can only mark the next stop as reached.', 400, 'INVALID_STOP');
+  }
+
+  const { setArrivalState } = require('./realtimeStore');
+  await setArrivalState(String(trip._id), String(next._id), 'ARRIVED');
+
+  const state = await markStopReached(trip, next);
+  return state;
+}
+
 async function markStopReached(trip, routeStop) {
   if (trip.completedSequences.includes(routeStop.sequence)) return snapshot(trip);
 
@@ -470,21 +444,7 @@ async function markStopReached(trip, routeStop) {
     isFinalStopReached: state.isFinalStopReached,
   });
 
-  const pickupStudents = await studentsForPickup(routeStop.stop._id);
-  await createAndPush({
-    userIds: pickupStudents.map((s) => s._id),
-    title: '📍 Bus arrived',
-    body: `${populated.bus.busNumber} has reached ${routeStop.stop.name}.`,
-    type: 'BUS_ARRIVED_STOP',
-    data: {
-      stopName: routeStop.stop.name,
-      routeStopId: String(routeStop._id),
-      sequence: routeStop.sequence,
-    },
-    trip: trip._id,
-    settingKey: 'busArrived',
-    dedupKey: `arrived-${trip._id}-${routeStop.sequence}`,
-  });
+  // Arrived notification removed per requirement: students are only notified when bus is approaching their selected pickup stop
 
   if (state.isFinalStopReached) {
     const driverRecord = await Driver.findById(trip.driver);
@@ -551,6 +511,7 @@ module.exports = {
   resumeTrip,
   endTrip,
   skipNextStop,
+  reachNextStop,
   markStopReached,
   liveCampusState,
   driverLiveState,

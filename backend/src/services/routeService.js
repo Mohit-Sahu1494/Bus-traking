@@ -41,7 +41,9 @@ async function tripProgress(trip) {
 
   let eta = null;
   let etaLabel = 'Calculating...';
-  if (location && next) {
+  if (trip.bus?.status === 'OFFLINE') {
+    etaLabel = 'Signal paused';
+  } else if (location && next) {
     const distanceM = haversineMeters(location, { latitude: next.latitude, longitude: next.longitude });
     const speed = location.speed > 0.5 ? location.speed : averageSpeedMps(samples);
     const seconds = etaSeconds(distanceM, speed);

@@ -40,6 +40,7 @@ class TripProvider extends ChangeNotifier {
   String currentAreaDescription = 'GPS LIVE';
 
   StreamSubscription<Position>? _gpsSub;
+  Timer? _heartbeatTimer;
   DateTime? _lastEmit;
   Position? _lastEmittedPosition;
   final List<Map<String, dynamic>> _locationBuffer = [];
@@ -296,6 +297,16 @@ class TripProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> reachStop() async {
+    final nextId = live?['nextStop']?['id'];
+    live = Map<String, dynamic>.from(await _api.send(
+      'POST',
+      '/api/driver/stop/reach',
+      body: nextId != null ? {'routeStopId': nextId} : null,
+    ) as Map);
+    notifyListeners();
+  }
+
   Future<void> stop() async {
     await _stopGps();
     await _socket.disconnect();
@@ -400,6 +411,8 @@ class TripProvider extends ChangeNotifier {
     // Initial position sample
     final pos = await _location.current();
     if (pos != null) _onPosition(pos);
+
+    _startHeartbeatTimer();
   }
 
   void _onPosition(Position pos) {
@@ -492,7 +505,29 @@ class TripProvider extends ChangeNotifier {
     }
   }
 
+  void _startHeartbeatTimer() {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = Timer.periodic(const Duration(seconds: 8), (_) {
+      if ((isActive || isPaused) && socketConnected && currentPosition != null) {
+        final now = DateTime.now();
+        if (_lastEmit == null || now.difference(_lastEmit!).inSeconds >= 6) {
+          _socket.emit('driver:heartbeat', {
+            'latitude': currentPosition!.latitude,
+            'longitude': currentPosition!.longitude,
+            'speed': currentPosition!.speed,
+            'heading': currentPosition!.heading,
+            'accuracy': currentPosition!.accuracy,
+            'timestamp': now.toIso8601String(),
+          });
+          _lastEmit = now;
+        }
+      }
+    });
+  }
+
   Future<void> _stopGps() async {
+    _heartbeatTimer?.cancel();
+    _heartbeatTimer = null;
     await _gpsSub?.cancel();
     _gpsSub = null;
     gpsOn = false;

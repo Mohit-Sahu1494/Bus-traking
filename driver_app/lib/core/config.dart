@@ -8,7 +8,7 @@ class AppConfig {
     }
 
     //https://bus-traking-production.up.railway.app
-    return 'https://bus-traking-production.up.railway.app';
+    return 'http://localhost:4000';
   }
 
   // Dr. Harisingh Gour Vishwavidyalaya, Sagar Centroid
@@ -22,7 +22,7 @@ class AppConfig {
   static const centerPointSeq4 = LatLng(23.82665450787519, 78.77178170834694);
   static const centerPointSeq7 = LatLng(23.82679396278914, 78.77201469954832);
   static const boysHostel = LatLng(23.821345891404626, 78.7700572856471);
-  static const girlsHostel = LatLng(23.830215356429985, 78.77840351072815);
+  static const girlsHostel = LatLng(23.831420054329637, 78.7816975423115);
 
   /// Default 7-stop fixed circular route with unique sequences:
   /// Sequence 1 -> Center Point
@@ -101,14 +101,14 @@ class AppConfig {
     {
       'id': 'rs_seq_6',
       'sequence': 6,
-      'latitude': 23.830215356429985,
-      'longitude': 78.77840351072815,
+      'latitude': 23.831420054329637,
+      'longitude': 78.7816975423115,
       'stop': {
         'id': 'stop_girls_hostel',
         'name': 'Girls Hostel',
         'code': 'GIRLS_HOSTEL',
-        'latitude': 23.830215356429985,
-        'longitude': 78.77840351072815,
+        'latitude': 23.831420054329637,
+        'longitude': 78.7816975423115,
       },
     },
     {

@@ -196,5 +196,21 @@ void main() {
         'Internet unavailable. Check your connection.',
       );
     });
+
+    test('reachStop calls /api/driver/stop/reach with next routeStopId', () async {
+      tripProvider.live = {
+        'status': 'ACTIVE',
+        'nextStop': {
+          'id': 'route-stop-456',
+          'sequence': 2,
+          'stop': {'name': 'Arts Block'},
+        },
+      };
+
+      await tripProvider.reachStop();
+      expect(mockApi.lastMethod, 'POST');
+      expect(mockApi.lastPath, '/api/driver/stop/reach');
+      expect(mockApi.lastPayload, {'routeStopId': 'route-stop-456'});
+    });
   });
 }

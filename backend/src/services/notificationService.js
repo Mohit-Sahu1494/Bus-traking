@@ -1,7 +1,7 @@
 const { getMessaging } = require('../config/firebase');
 const { Notification, User, DeviceToken } = require('../models');
 const { SOCKET_EVENTS } = require('../utils/constants');
-const { emitUser, emitCampus } = require('../sockets/emitter');
+const { emitUser } = require('../sockets/emitter');
 const { claimNotification } = require('./realtimeStore');
 
 /**
@@ -174,13 +174,7 @@ async function createAndPush({
       });
     }
 
-    // 4. Emit campus-wide event for live counters
-    emitCampus(SOCKET_EVENTS.NOTIFICATION_CREATED, {
-      type,
-      title,
-      body,
-      data: { ...data, tripId: tripIdStr },
-    });
+
 
     // 5. Gather multi-device active FCM tokens
     const deviceTokens = await DeviceToken.find({

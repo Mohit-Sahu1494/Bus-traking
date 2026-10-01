@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../core/theme.dart';
+import '../models/models.dart';
 import '../providers/auth_provider.dart';
 import '../providers/live_provider.dart';
 import '../services/socket_service.dart';
@@ -402,46 +403,236 @@ class ProfileScreen extends StatelessWidget {
   }
 
   void _showSettings(BuildContext context) {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final initial = auth.user?.notificationSettings ?? NotificationSettings();
+
+    bool busApproaching = initial.busApproaching;
+    bool busArrived = initial.busArrived;
+    bool stopSkipped = initial.stopSkipped;
+    bool paused = initial.paused;
+    bool tripEnded = initial.tripEnded;
+    bool isSaving = false;
+
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (ctx) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Notification Settings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.navy)),
-            const SizedBox(height: 8),
-            const Text('Configure push alerts for campus bus events', style: TextStyle(fontSize: 13, color: AppTheme.muted)),
-            const SizedBox(height: 16),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Bus Arrived Alerts', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Notify when bus reaches your pickup stop', style: TextStyle(fontSize: 12)),
-              value: true,
-              onChanged: (_) {},
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          final allActive = busApproaching || busArrived || stopSkipped || paused || tripEnded;
+
+          Future<void> saveSettings({
+            bool? newApproaching,
+            bool? newArrived,
+            bool? newSkipped,
+            bool? newPaused,
+            bool? newEnded,
+          }) async {
+            setModalState(() {
+              if (newApproaching != null) busApproaching = newApproaching;
+              if (newArrived != null) busArrived = newArrived;
+              if (newSkipped != null) stopSkipped = newSkipped;
+              if (newPaused != null) paused = newPaused;
+              if (newEnded != null) tripEnded = newEnded;
+              isSaving = true;
+            });
+
+            try {
+              await auth.updateNotificationSettings({
+                'busApproaching': busApproaching,
+                'busArrived': busArrived,
+                'stopSkipped': stopSkipped,
+                'paused': paused,
+                'tripEnded': tripEnded,
+              });
+            } catch (e) {
+              if (ctx.mounted) {
+                ScaffoldMessenger.of(ctx).showSnackBar(
+                  SnackBar(
+                    content: Text('Failed to update settings: $e'),
+                    backgroundColor: AppTheme.coral,
+                  ),
+                );
+              }
+            } finally {
+              if (ctx.mounted) {
+                setModalState(() => isSaving = false);
+              }
+            }
+          }
+
+          Future<void> toggleMaster(bool enableAll) async {
+            await saveSettings(
+              newApproaching: enableAll,
+              newArrived: enableAll,
+              newSkipped: enableAll,
+              newPaused: enableAll,
+              newEnded: enableAll,
+            );
+          }
+
+          return Padding(
+            padding: EdgeInsets.only(
+              left: 20,
+              right: 20,
+              top: 20,
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Stop Skipped Alerts', style: TextStyle(fontWeight: FontWeight.w600)),
-              subtitle: const Text('Immediate alert if your stop is skipped by driver', style: TextStyle(fontSize: 12)),
-              value: true,
-              onChanged: (_) {},
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Done'),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Center(
+                    child: Container(
+                      width: 40,
+                      height: 4,
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFCBD5E1),
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Notification Settings',
+                            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppTheme.navy),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            'Configure live bus alerts and push updates',
+                            style: TextStyle(fontSize: 12, color: AppTheme.muted),
+                          ),
+                        ],
+                      ),
+                      if (isSaving)
+                        const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.primary),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+
+                  // MASTER TOGGLE
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: allActive ? const Color(0xFFEFF6FF) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: allActive ? const Color(0xFFBFDBFE) : AppTheme.border,
+                      ),
+                    ),
+                    child: SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      activeColor: AppTheme.primary,
+                      title: Text(
+                        allActive ? 'Notifications Enabled' : 'All Notifications Disabled',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          color: allActive ? AppTheme.navy : AppTheme.muted,
+                        ),
+                      ),
+                      subtitle: Text(
+                        allActive ? 'Tap to turn off all alerts' : 'Tap to enable all alerts',
+                        style: const TextStyle(fontSize: 11, color: AppTheme.muted),
+                      ),
+                      value: allActive,
+                      onChanged: (val) => toggleMaster(val),
+                    ),
+                  ),
+
+                  const SizedBox(height: 12),
+                  const Text(
+                    'INDIVIDUAL ALERT PREFERENCES',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.muted,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppTheme.primary,
+                    title: const Text('Bus Approaching Alert', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.navy)),
+                    subtitle: const Text('Notify when bus is ~120m from your pickup stop', style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+                    value: busApproaching,
+                    onChanged: (val) => saveSettings(newApproaching: val),
+                  ),
+                  const Divider(height: 1, color: AppTheme.border),
+
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppTheme.primary,
+                    title: const Text('Bus Arrived Alert', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.navy)),
+                    subtitle: const Text('Notify when bus reaches your pickup stop', style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+                    value: busArrived,
+                    onChanged: (val) => saveSettings(newArrived: val),
+                  ),
+                  const Divider(height: 1, color: AppTheme.border),
+
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppTheme.primary,
+                    title: const Text('Stop Skipped Alert', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.navy)),
+                    subtitle: const Text('Immediate alert if driver skips your stop', style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+                    value: stopSkipped,
+                    onChanged: (val) => saveSettings(newSkipped: val),
+                  ),
+                  const Divider(height: 1, color: AppTheme.border),
+
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppTheme.primary,
+                    title: const Text('Trip Paused / Delay Alert', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.navy)),
+                    subtitle: const Text('Notify if trip is paused due to traffic or issues', style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+                    value: paused,
+                    onChanged: (val) => saveSettings(newPaused: val),
+                  ),
+                  const Divider(height: 1, color: AppTheme.border),
+
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    activeColor: AppTheme.primary,
+                    title: const Text('Trip Completed Alert', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.navy)),
+                    subtitle: const Text('Notify when the campus bus completes the route', style: TextStyle(fontSize: 12, color: AppTheme.muted)),
+                    value: tripEnded,
+                    onChanged: (val) => saveSettings(newEnded: val),
+                  ),
+
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 48,
+                    child: FilledButton(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppTheme.primary,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      onPressed: () => Navigator.pop(ctx),
+                      child: const Text('Done', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
