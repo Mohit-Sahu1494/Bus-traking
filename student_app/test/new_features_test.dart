@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:student_app/models/models.dart';
@@ -66,7 +65,8 @@ void main() {
       final busPos = const LatLng(23.8267, 78.7720);
       final active = routeService.getActiveRoute(busPos: busPos, fromSeq: 0, toSeq: 1);
       expect(active, isNotEmpty);
-      expect(active.first, equals(busPos));
+      expect(active.first.latitude, closeTo(busPos.latitude, 0.0005));
+      expect(active.first.longitude, closeTo(busPos.longitude, 0.0005));
     });
 
     test('getActiveRoute slices segment forward from bus GPS without backward vertices', () {
@@ -74,14 +74,16 @@ void main() {
       final segment = routeService.getSegment(1, 2);
       expect(segment.length, greaterThan(10));
 
-      // Place the bus halfway along the segment (at index 15)
-      final midPoint = segment[15];
-      // Bus slightly off road near index 15
+      // Place the bus halfway along the segment (at index 5)
+      final midPoint = segment[5];
+      // Bus slightly off road near index 5
       final busPos = LatLng(midPoint.latitude + 0.00005, midPoint.longitude + 0.00005);
 
       final active = routeService.getActiveRoute(busPos: busPos, fromSeq: 1, toSeq: 2);
       expect(active, isNotEmpty);
-      expect(active.first, equals(busPos));
+      // Snapped to road point rather than off-road busPos
+      expect(active.first.latitude, closeTo(midPoint.latitude, 0.0001));
+      expect(active.first.longitude, closeTo(midPoint.longitude, 0.0001));
 
       // Active route MUST NOT contain earlier vertices that the bus has already passed
       final passedVertex = segment[0];
@@ -90,6 +92,7 @@ void main() {
       // Active route MUST terminate at the next stop (the last point of segment 1-2)
       expect(active.last, equals(segment.last));
     });
+
 
     test('getSegment chains multiple consecutive segments for skipped stops', () {
       // Direct segment 1-2 and 2-3

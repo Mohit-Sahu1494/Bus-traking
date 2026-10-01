@@ -10,6 +10,7 @@ import '../providers/auth_provider.dart';
 import '../providers/trip_provider.dart';
 import '../services/device_location.dart';
 import '../services/route_geometry_service.dart';
+import '../services/route_service.dart';
 import '../widgets/bus_selection_sheet.dart';
 import 'route_screen.dart';
 
@@ -71,49 +72,70 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final stops = trip.routeStops;
     if (stops.length < 2) return polylines;
 
-    // Full road-following route (subtle blue)
+    // Full road-following route (complete campus circuit in BLUE)
     final fullRoad = routeService.getFullRoute(stops, skippedSequences: trip.skipped);
     if (fullRoad.length >= 2) {
       polylines.add(
         Polyline(
           points: fullRoad,
-          color: const Color(0xFF93C5FD),
-          strokeWidth: 3.5,
+          color: const Color(0xFF3B82F6), // Complete campus route in vibrant blue
+          strokeWidth: 4.0,
           strokeCap: StrokeCap.round,
           strokeJoin: StrokeJoin.round,
         ),
       );
     }
 
-    // Active segment to next stop (highlighted royal blue)
-    if (trip.isActive && trip.live?['nextStop'] != null) {
+    // Active remaining route to next stop (strictly follows road geometry in GRAY)
+    if (trip.isActive && trip.live?['nextStop'] != null && trip.currentLatLng != null) {
       final nextSeq = (trip.live!['nextStop']['sequence'] as num?)?.toInt() ?? (trip.currentSequence + 1);
       final fromSeq = (trip.currentSequence > 0 && trip.currentSequence < nextSeq)
           ? trip.currentSequence
           : (nextSeq > 1 ? nextSeq - 1 : 1);
-      final activeSegment = routeService.getActiveRoute(
-        busPos: trip.currentLatLng,
-        fromSeq: fromSeq,
-        toSeq: nextSeq,
+
+      final nextLat = (trip.live!['nextStop']['latitude'] as num?)?.toDouble() ?? 0.0;
+      final nextLng = (trip.live!['nextStop']['longitude'] as num?)?.toDouble() ?? 0.0;
+      LatLng? nextStopPos;
+      if (nextLat != 0.0 && nextLng != 0.0) {
+        nextStopPos = LatLng(nextLat, nextLng);
+      } else {
+        for (final s in stops) {
+          if ((s['sequence'] as num?)?.toInt() == nextSeq) {
+            final lat = (s['latitude'] as num?)?.toDouble() ?? 0.0;
+            final lng = (s['longitude'] as num?)?.toDouble() ?? 0.0;
+            if (lat != 0.0 && lng != 0.0) {
+              nextStopPos = LatLng(lat, lng);
+              break;
+            }
+          }
+        }
+      }
+
+      final activeSegment = RouteService.instance.getRemainingRoute(
+        busLocation: trip.currentLatLng,
+        nextStopLocation: nextStopPos,
+        fromSequence: fromSeq,
+        toSequence: nextSeq,
       );
+
       if (activeSegment.length >= 2) {
-        // Outer glow underlay for prominent visibility
+        // Outer contrast layer for clean visibility
         polylines.add(
           Polyline(
             points: activeSegment,
-            color: const Color(0x551E3A8A), // dark blue glow
-            strokeWidth: 10.0,
+            color: const Color(0x33334155),
+            strokeWidth: 9.0,
             strokeCap: StrokeCap.round,
             strokeJoin: StrokeJoin.round,
           ),
         );
 
-        // Core highlighted route line from bus to next stop in bold Dark Blue
+        // Core remaining route line in GRAY following the exact predefined road geometry
         polylines.add(
           Polyline(
             points: activeSegment,
-            color: const Color(0xFF1E3A8A), // deep dark blue
-            strokeWidth: 6.0,
+            color: const Color(0xFF475569), // Slate gray remaining route
+            strokeWidth: 5.5,
             strokeCap: StrokeCap.round,
             strokeJoin: StrokeJoin.round,
           ),
@@ -123,6 +145,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
 
     return polylines;
   }
+
 
   List<Marker> _buildMarkers(TripProvider trip) {
     final markers = <Marker>[];

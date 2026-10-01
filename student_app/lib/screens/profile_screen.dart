@@ -536,7 +536,7 @@ class ProfileScreen extends StatelessWidget {
                     ),
                     child: SwitchListTile(
                       contentPadding: EdgeInsets.zero,
-                      activeColor: AppTheme.primary,
+                      activeThumbColor: AppTheme.primary,
                       title: Text(
                         allActive ? 'Notifications Enabled' : 'All Notifications Disabled',
                         style: TextStyle(
@@ -568,7 +568,7 @@ class ProfileScreen extends StatelessWidget {
 
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    activeColor: AppTheme.primary,
+                    activeThumbColor: AppTheme.primary,
                     title: const Text('Bus Approaching Alert', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.navy)),
                     subtitle: const Text('Notify when bus is ~120m from your pickup stop', style: TextStyle(fontSize: 12, color: AppTheme.muted)),
                     value: busApproaching,
@@ -578,7 +578,7 @@ class ProfileScreen extends StatelessWidget {
 
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    activeColor: AppTheme.primary,
+                    activeThumbColor: AppTheme.primary,
                     title: const Text('Bus Arrived Alert', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.navy)),
                     subtitle: const Text('Notify when bus reaches your pickup stop', style: TextStyle(fontSize: 12, color: AppTheme.muted)),
                     value: busArrived,
@@ -588,7 +588,7 @@ class ProfileScreen extends StatelessWidget {
 
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    activeColor: AppTheme.primary,
+                    activeThumbColor: AppTheme.primary,
                     title: const Text('Stop Skipped Alert', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.navy)),
                     subtitle: const Text('Immediate alert if driver skips your stop', style: TextStyle(fontSize: 12, color: AppTheme.muted)),
                     value: stopSkipped,
@@ -598,7 +598,7 @@ class ProfileScreen extends StatelessWidget {
 
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    activeColor: AppTheme.primary,
+                    activeThumbColor: AppTheme.primary,
                     title: const Text('Trip Paused / Delay Alert', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.navy)),
                     subtitle: const Text('Notify if trip is paused due to traffic or issues', style: TextStyle(fontSize: 12, color: AppTheme.muted)),
                     value: paused,
@@ -608,7 +608,7 @@ class ProfileScreen extends StatelessWidget {
 
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    activeColor: AppTheme.primary,
+                    activeThumbColor: AppTheme.primary,
                     title: const Text('Trip Completed Alert', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14, color: AppTheme.navy)),
                     subtitle: const Text('Notify when the campus bus completes the route', style: TextStyle(fontSize: 12, color: AppTheme.muted)),
                     value: tripEnded,

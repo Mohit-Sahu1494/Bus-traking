@@ -102,35 +102,50 @@ async function startTrip(user, initialCoords = null) {
   }).populate('bus').populate('route').populate('driver');
 
   if (existing) {
-    if (
-      initialCoords &&
-      typeof initialCoords.latitude === 'number' &&
-      typeof initialCoords.longitude === 'number' &&
-      initialCoords.latitude >= -90 &&
-      initialCoords.latitude <= 90 &&
-      initialCoords.longitude >= -180 &&
-      initialCoords.longitude <= 180
-    ) {
-      const locPayload = {
-        latitude: initialCoords.latitude,
-        longitude: initialCoords.longitude,
-        speed: initialCoords.speed || 0,
-        heading: initialCoords.heading || 0,
-        accuracy: initialCoords.accuracy || null,
-        at: new Date().toISOString(),
-        busId: String(existing.bus._id),
-        tripId: String(existing._id),
-        status: existing.status,
-      };
-      await setBusLocation(String(existing.bus._id), locPayload);
-      existing.bus.lastLocation = { latitude: locPayload.latitude, longitude: locPayload.longitude };
-      existing.bus.lastLocationAt = new Date();
-      existing.bus.lastHeartbeatAt = new Date();
-      await existing.bus.save();
+    const isStale = (Date.now() - new Date(existing.startedAt).getTime()) > 12 * 60 * 60 * 1000;
+    if (isStale) {
+      existing.status = TRIP_STATUS.COMPLETED;
+      existing.endedAt = new Date();
+      existing.durationMs = existing.endedAt.getTime() - new Date(existing.startedAt).getTime();
+      await existing.save();
+      if (existing.bus) {
+        existing.bus.status = BUS_STATUS.INACTIVE;
+        existing.bus.activeTrip = undefined;
+        await existing.bus.save();
+      }
+      await persistEvent(existing, TRIP_EVENT_TYPES.ENDED, { metadata: { autoCompleted: true, reason: 'STALE_PREVIOUS_DAY' } });
+      await clearTripState(String(existing._id));
+    } else {
+      if (
+        initialCoords &&
+        typeof initialCoords.latitude === 'number' &&
+        typeof initialCoords.longitude === 'number' &&
+        initialCoords.latitude >= -90 &&
+        initialCoords.latitude <= 90 &&
+        initialCoords.longitude >= -180 &&
+        initialCoords.longitude <= 180
+      ) {
+        const locPayload = {
+          latitude: initialCoords.latitude,
+          longitude: initialCoords.longitude,
+          speed: initialCoords.speed || 0,
+          heading: initialCoords.heading || 0,
+          accuracy: initialCoords.accuracy || null,
+          at: new Date().toISOString(),
+          busId: String(existing.bus._id),
+          tripId: String(existing._id),
+          status: existing.status,
+        };
+        await setBusLocation(String(existing.bus._id), locPayload);
+        existing.bus.lastLocation = { latitude: locPayload.latitude, longitude: locPayload.longitude };
+        existing.bus.lastLocationAt = new Date();
+        existing.bus.lastHeartbeatAt = new Date();
+        await existing.bus.save();
+      }
+      const state = await snapshot(existing);
+      emitTrip(SOCKET_EVENTS.DRIVER_TRIP_STARTED, state);
+      return state;
     }
-    const state = await snapshot(existing);
-    emitTrip(SOCKET_EVENTS.DRIVER_TRIP_STARTED, state);
-    return state;
   }
 
   const bus = await Bus.findById(driver.assignedBus._id);
@@ -487,11 +502,14 @@ async function driverLiveState(user) {
     startedAt: { $gte: todayStart },
   }).sort({ startedAt: -1 });
 
-  const active = tripsToday.find((t) => [TRIP_STATUS.ACTIVE, TRIP_STATUS.PAUSED].includes(t.status));
+  // Query active trip directly so trips started across midnight or earlier are never lost
+  const active = await Trip.findOne({
+    driver: driver._id,
+    status: { $in: [TRIP_STATUS.ACTIVE, TRIP_STATUS.PAUSED] },
+  }).populate('bus').populate('route');
   let live = null;
   if (active) {
-    const populated = await Trip.findById(active._id).populate('bus').populate('route');
-    live = await snapshot(populated);
+    live = await snapshot(active);
   }
 
   return {

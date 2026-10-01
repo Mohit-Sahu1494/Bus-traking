@@ -1,11 +1,11 @@
 // Verified main highway / major road geometries for DHSGSU campus route
 import 'dart:convert';
-import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import '../core/config.dart';
 import '../models/models.dart';
+import 'route_service.dart';
 
 class RouteGeometryService {
   RouteGeometryService._();
@@ -18,102 +18,20 @@ class RouteGeometryService {
   /// and primary university roads (preferring main roads over internal shortcuts).
   static final Map<String, List<LatLng>> _fallbackSegments = {
     '1-2': const [
-      LatLng(23.82680318, 78.77196191),
-      LatLng(23.82680900, 78.77205600),
-      LatLng(23.82682600, 78.77213500),
-      LatLng(23.82669450, 78.77224200),
-      LatLng(23.82656300, 78.77234900),
-      LatLng(23.82646567, 78.77243000),
-      LatLng(23.82636833, 78.77251100),
-      LatLng(23.82627100, 78.77259200),
-      LatLng(23.82622150, 78.77267600),
-      LatLng(23.82617200, 78.77276000),
-      LatLng(23.82613300, 78.77288500),
-      LatLng(23.82612700, 78.77301600),
-      LatLng(23.82618450, 78.77319600),
-      LatLng(23.82624200, 78.77337600),
-      LatLng(23.82630333, 78.77353033),
-      LatLng(23.82636467, 78.77368467),
-      LatLng(23.82642600, 78.77383900),
-      LatLng(23.82649300, 78.77395733),
-      LatLng(23.82656000, 78.77407567),
-      LatLng(23.82662700, 78.77419400),
-      LatLng(23.82672060, 78.77432960),
-      LatLng(23.82681420, 78.77446520),
-      LatLng(23.82690780, 78.77460080),
-      LatLng(23.82700140, 78.77473640),
-      LatLng(23.82709500, 78.77487200),
-      LatLng(23.82723967, 78.77497700),
-      LatLng(23.82738433, 78.77508200),
-      LatLng(23.82752900, 78.77518700),
-      LatLng(23.82760050, 78.77525850),
-      LatLng(23.82767200, 78.77533000),
-      LatLng(23.82770500, 78.77549400),
-      LatLng(23.82767350, 78.77567950),
-      LatLng(23.82764200, 78.77586500),
-      LatLng(23.82758925, 78.77604375),
-      LatLng(23.82753650, 78.77622250),
-      LatLng(23.82748375, 78.77640125),
-      LatLng(23.82743100, 78.77658000),
-      LatLng(23.82741100, 78.77664600),
-      LatLng(23.82739600, 78.77682457),
-      LatLng(23.82738100, 78.77700314),
-      LatLng(23.82736600, 78.77718171),
-      LatLng(23.82735100, 78.77736029),
-      LatLng(23.82733600, 78.77753886),
-      LatLng(23.82732100, 78.77771743),
-      LatLng(23.82730600, 78.77789600),
-      LatLng(23.82725350, 78.77800150),
-      LatLng(23.82720100, 78.77810700),
-      LatLng(23.82707800, 78.77823283),
-      LatLng(23.82695500, 78.77835867),
-      LatLng(23.82683200, 78.77848450),
-      LatLng(23.82670900, 78.77861033),
-      LatLng(23.82658600, 78.77873617),
-      LatLng(23.82646300, 78.77886200),
-      LatLng(23.82634800, 78.77894850),
-      LatLng(23.82623300, 78.77903500),
-      LatLng(23.82619900, 78.77905200),
-      LatLng(23.82605900, 78.77912150),
-      LatLng(23.82591900, 78.77919100),
-      LatLng(23.82578300, 78.77923900),
-      LatLng(23.82564700, 78.77928700),
-      LatLng(23.82551100, 78.77933500),
-      LatLng(23.82537500, 78.77938300),
-      LatLng(23.82522750, 78.77941225),
-      LatLng(23.82508000, 78.77944150),
-      LatLng(23.82493250, 78.77947075),
-      LatLng(23.82478500, 78.77950000),
-      LatLng(23.82462820, 78.77949540),
-      LatLng(23.82447140, 78.77949080),
-      LatLng(23.82431460, 78.77948620),
-      LatLng(23.82415780, 78.77948160),
-      LatLng(23.82400100, 78.77947700),
-      LatLng(23.82384067, 78.77947867),
-      LatLng(23.82368033, 78.77948033),
-      LatLng(23.82352000, 78.77948200),
-      LatLng(23.82353250, 78.77959000),
-      LatLng(23.82354500, 78.77969800),
-      LatLng(23.82370400, 78.77974850),
-      LatLng(23.82386300, 78.77979900),
-      LatLng(23.82390240, 78.77996220),
-      LatLng(23.82394180, 78.78012540),
-      LatLng(23.82398120, 78.78028860),
-      LatLng(23.82402060, 78.78045180),
-      LatLng(23.82406000, 78.78061500),
-      LatLng(23.82407600, 78.78079520),
-      LatLng(23.82409200, 78.78097540),
-      LatLng(23.82410800, 78.78115560),
-      LatLng(23.82412400, 78.78133580),
-      LatLng(23.82414000, 78.78151600),
-      LatLng(23.82421575, 78.78166950),
-      LatLng(23.82429150, 78.78182300),
-      LatLng(23.82436725, 78.78197650),
-      LatLng(23.82444300, 78.78213000),
-      LatLng(23.82460704, 78.78210768),
+      LatLng(23.826821, 78.771972),
+      LatLng(23.826895, 78.772195),
+      LatLng(23.826224601328036, 78.77292518352971),
+      LatLng(23.826652232281337, 78.77412320708693),
+      LatLng(23.82715576130496, 78.77472828993788),
+      LatLng(23.827778690626648, 78.77526861473295),
+      LatLng(23.827316171204377, 78.77797724204672),
+      LatLng(23.82638025053054, 78.77902201619617),
+      LatLng(23.825862767680857, 78.77931433642672),
+      LatLng(23.825216530216906, 78.78202100513803),
+      LatLng(23.82458266966359, 78.78210491186721),
     ],
     '2-3': const [
-      LatLng(23.82460704, 78.78210768),
+      LatLng(23.82458266966359, 78.78210491186721),
       LatLng(23.82452502, 78.78211884),
       LatLng(23.82444300, 78.78213000),
       LatLng(23.82453025, 78.78212213),
@@ -275,66 +193,27 @@ class RouteGeometryService {
       LatLng(23.82682600, 78.77213500),
       LatLng(23.82680900, 78.77205600),
       LatLng(23.82673176, 78.77191885),
-      LatLng(23.82665451, 78.77178171),
+      LatLng(23.826792598716434, 78.77178387863042),
     ],
     '4-5': const [
-      LatLng(23.82665451, 78.77178171),
-      LatLng(23.82665600, 78.77175400),
-      LatLng(23.82649244, 78.77174400),
-      LatLng(23.82632889, 78.77173400),
-      LatLng(23.82616533, 78.77172400),
-      LatLng(23.82600178, 78.77171400),
-      LatLng(23.82583822, 78.77170400),
-      LatLng(23.82567467, 78.77169400),
-      LatLng(23.82551111, 78.77168400),
-      LatLng(23.82534756, 78.77167400),
-      LatLng(23.82518400, 78.77166400),
-      LatLng(23.82512600, 78.77166000),
-      LatLng(23.82497740, 78.77164900),
-      LatLng(23.82482880, 78.77163800),
-      LatLng(23.82468020, 78.77162700),
-      LatLng(23.82453160, 78.77161600),
-      LatLng(23.82438300, 78.77160500),
-      LatLng(23.82426400, 78.77159600),
-      LatLng(23.82415150, 78.77158350),
-      LatLng(23.82403900, 78.77157100),
-      LatLng(23.82402200, 78.77156900),
-      LatLng(23.82385780, 78.77155160),
-      LatLng(23.82369360, 78.77153420),
-      LatLng(23.82352940, 78.77151680),
-      LatLng(23.82336520, 78.77149940),
-      LatLng(23.82320100, 78.77148200),
-      LatLng(23.82316200, 78.77148000),
-      LatLng(23.82312600, 78.77148700),
-      LatLng(23.82299400, 78.77153550),
-      LatLng(23.82286200, 78.77158400),
-      LatLng(23.82281100, 78.77159900),
-      LatLng(23.82278000, 78.77160400),
-      LatLng(23.82273800, 78.77160200),
-      LatLng(23.82269000, 78.77158400),
-      LatLng(23.82265200, 78.77154900),
-      LatLng(23.82262800, 78.77151100),
-      LatLng(23.82246400, 78.77152433),
-      LatLng(23.82230000, 78.77153767),
-      LatLng(23.82213600, 78.77155100),
-      LatLng(23.82213300, 78.77151600),
-      LatLng(23.82212600, 78.77148800),
-      LatLng(23.82207220, 78.77131280),
-      LatLng(23.82201840, 78.77113760),
-      LatLng(23.82196460, 78.77096240),
-      LatLng(23.82191080, 78.77078720),
-      LatLng(23.82185700, 78.77061200),
-      LatLng(23.82180100, 78.77042950),
-      LatLng(23.82174500, 78.77024700),
-      LatLng(23.82169700, 78.77024100),
-      LatLng(23.82162200, 78.77022900),
-      LatLng(23.82156000, 78.77020700),
-      LatLng(23.82150200, 78.77017100),
-      LatLng(23.82142394, 78.77011415),
-      LatLng(23.82134589, 78.77005729),
+      LatLng(23.826792598716434, 78.77178387863042),
+      LatLng(23.823340318023174, 78.77154867934352),
+      LatLng(23.822733958962935, 78.77159678828465),
+      LatLng(23.822685058911965, 78.77147384320982),
+      LatLng(23.822807179965565, 78.77106118982682),
+      LatLng(23.82284643887114, 78.77075541800838),
+      LatLng(23.822767921048122, 78.77059448547234),
+      LatLng(23.82247838616512, 78.77034235783256),
+      LatLng(23.82173737021713, 78.77018678971442),
+      LatLng(23.821354592091286, 78.7700902301866),
+      LatLng(23.821119035771765, 78.77014387436526),
+      LatLng(23.820726440955777, 78.77003658600792),
+      LatLng(23.82064792185007, 78.76995075532203),
+      LatLng(23.820706811183804, 78.76944650004249),
+      LatLng(23.82133496241432, 78.77005267926151),
     ],
     '5-6': const [
-      LatLng(23.82134589, 78.77005729),
+      LatLng(23.82133496241432, 78.77005267926151),
       LatLng(23.82142395, 78.77011414),
       LatLng(23.82150200, 78.77017100),
       LatLng(23.82156000, 78.77020700),
@@ -551,7 +430,7 @@ class RouteGeometryService {
       LatLng(23.82696200, 78.77204600),
       LatLng(23.82682600, 78.77213500),
       LatLng(23.82680900, 78.77205600),
-      LatLng(23.82679396, 78.77201470),
+      LatLng(23.826821, 78.771972),
     ],
   };
 
@@ -613,114 +492,18 @@ class RouteGeometryService {
     required int fromSeq,
     required int toSeq,
   }) {
-    int effectiveFrom = fromSeq;
-    int effectiveTo = toSeq;
-
-    List<LatLng> segment;
-    if (effectiveTo <= 1) {
-      final stop1 = _fallbackSegments['1-2']?.first ?? const LatLng(23.82680318, 78.77196191);
-      if (busPos != null) {
-        final distToStop1 = const Distance().as(LengthUnit.Meter, busPos, stop1);
-        if (distToStop1 <= 100) {
-          // Bus is at/near Stop 1 preparing/departing towards Stop 2
-          segment = getSegment(1, 2);
-        } else {
-          // Bus is approaching Stop 1 from circular route
-          segment = getSegment(6, 7);
-        }
-      } else {
-        segment = getSegment(1, 2);
-      }
-    } else {
-      if (effectiveFrom >= effectiveTo) {
-        effectiveFrom = effectiveTo - 1;
-      }
-      segment = getSegment(effectiveFrom, effectiveTo);
-    }
-
-    if (segment.isEmpty) {
-      return busPos != null ? [busPos] : [];
-    }
-
     if (busPos == null) {
-      return segment;
+      return getSegment(fromSeq, toSeq);
     }
-
-    return _sliceRouteFromBus(busPos, segment);
+    return RouteService.instance.getRemainingRoute(
+      busLocation: busPos,
+      nextStopLocation: null,
+      fromSequence: fromSeq,
+      toSequence: toSeq,
+    );
   }
 
-  /// Projects busPos onto the closest road edge and slices the path strictly forward
-  /// to the next stop, preventing erratic backward lines, cross-campus jumps, or straight cuts.
-  List<LatLng> _sliceRouteFromBus(LatLng busPos, List<LatLng> points) {
-    if (points.length < 2) {
-      return [busPos, ...points];
-    }
 
-    const dLatScale = 111000.0;
-    final cosLat = math.cos(busPos.latitude * math.pi / 180.0) * 111000.0;
-    final bx = busPos.longitude * cosLat;
-    final by = busPos.latitude * dLatScale;
-
-    int bestEdgeIdx = 0;
-    double minDistanceSq = double.infinity;
-    double bestT = 0.0;
-    LatLng bestProjPoint = points[0];
-
-    for (int i = 0; i < points.length - 1; i++) {
-      final p1 = points[i];
-      final p2 = points[i + 1];
-
-      final x1 = p1.longitude * cosLat;
-      final y1 = p1.latitude * dLatScale;
-      final x2 = p2.longitude * cosLat;
-      final y2 = p2.latitude * dLatScale;
-
-      final dx = x2 - x1;
-      final dy = y2 - y1;
-      final lenSq = dx * dx + dy * dy;
-
-      double t;
-      if (lenSq < 1e-6) {
-        t = 0.0;
-      } else {
-        t = ((bx - x1) * dx + (by - y1) * dy) / lenSq;
-        if (t < 0.0) t = 0.0;
-        if (t > 1.0) t = 1.0;
-      }
-
-      final projX = x1 + t * dx;
-      final projY = y1 + t * dy;
-      final distSq = (bx - projX) * (bx - projX) + (by - projY) * (by - projY);
-
-      if (distSq < minDistanceSq) {
-        minDistanceSq = distSq;
-        bestEdgeIdx = i;
-        bestT = t;
-        bestProjPoint = LatLng(
-          p1.latitude + t * (p2.latitude - p1.latitude),
-          p1.longitude + t * (p2.longitude - p1.longitude),
-        );
-      }
-    }
-
-    final remaining = <LatLng>[busPos];
-    // If bus is preceding the segment start, keep entire segment
-    if (bestEdgeIdx == 0 && bestT <= 0.05) {
-      remaining.addAll(points);
-      return remaining;
-    }
-
-    if (bestT < 0.90) {
-      remaining.add(bestProjPoint);
-    }
-    for (int j = bestEdgeIdx + 1; j < points.length; j++) {
-      remaining.add(points[j]);
-    }
-    if (remaining.last != points.last) {
-      remaining.add(points.last);
-    }
-    return remaining;
-  }
 
   /// Asynchronously caches verified road geometry for route segments,
   /// strictly preserving hand-curated campus road geometries.

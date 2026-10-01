@@ -8,7 +8,7 @@ class AppConfig {
     }
 
     //https://bus-traking-production.up.railway.app
-    return 'http://localhost:4000';
+    return 'https://bus-traking-production.up.railway.app';
   }
 
   // Dr. Harisingh Gour Vishwavidyalaya, Sagar Centroid

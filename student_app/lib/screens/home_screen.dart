@@ -12,6 +12,7 @@ import 'notifications_screen.dart';
 import 'pickup_stop_screen.dart';
 import 'upcoming_stops_screen.dart';
 import '../services/route_geometry_service.dart';
+import '../services/route_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -63,135 +64,91 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   /// Builds road-following polylines:
-  /// 1. Completed segments — subtle grey following campus roads
-  /// 2. Active segment (current bus GPS → next stop) — highlighted royal blue following road geometry
-  /// 3. Upcoming route — subtle pale blue following campus roads
+  /// - Complete campus circuit — vibrant BLUE following predefined road geometry
+  /// - Remaining active route to next stop — GRAY starting strictly at nearest route point
   List<Polyline> _buildRoutePolylines(LiveProvider live) {
     final stops = live.routeStops;
     if (stops.length < 2) return [];
 
-    final busPos = live.busLatLng;
-    final nextStop = live.nextStop;
-    final currentSeq = live.currentSequence ?? 0;
-    final skipped = live.skippedSequences;
-    final routeService = RouteGeometryService.instance;
-
     final polylines = <Polyline>[];
+    final routeService = RouteGeometryService.instance;
+    final skipped = live.skippedSequences;
 
-    // When trip is inactive or there is no next stop, show entire circular route following roads
-    if (live.busStatus == 'INACTIVE' || nextStop == null) {
-      final fullRoadPoints = routeService.getFullRoute(stops, skippedSequences: skipped);
-      if (fullRoadPoints.length >= 2) {
-        polylines.add(
-          Polyline(
-            points: fullRoadPoints,
-            color: const Color(0xFF93C5FD), // subtle pale blue
-            strokeWidth: 3.5,
-            strokeCap: StrokeCap.round,
-            strokeJoin: StrokeJoin.round,
-          ),
-        );
-      }
-      return polylines;
-    }
-
-    // --- 1. Completed segments: stops with sequence <= currentSeq following roads ---
-    final completedRoadPoints = <LatLng>[];
-    for (int i = 0; i < stops.length - 1; i++) {
-      final from = stops[i];
-      final to = stops[i + 1];
-      if (to.sequence <= currentSeq &&
-          !skipped.contains(from.sequence) &&
-          !skipped.contains(to.sequence)) {
-        final seg = routeService.getSegment(from.sequence, to.sequence);
-        if (completedRoadPoints.isNotEmpty && seg.isNotEmpty) {
-          completedRoadPoints.addAll(seg.skip(1));
-        } else {
-          completedRoadPoints.addAll(seg);
-        }
-      }
-    }
-    if (completedRoadPoints.length >= 2) {
-      polylines.add(Polyline(
-        points: completedRoadPoints,
-        color: const Color(0xFFCBD5E1), // subtle grey
-        strokeWidth: 3.5,
-        strokeCap: StrokeCap.round,
-        strokeJoin: StrokeJoin.round,
-      ));
-    }
-
-    // --- 2. Upcoming route: stops from next stop's sequence onwards following roads ---
-    final upcomingRoadPoints = <LatLng>[];
-    for (int i = 0; i < stops.length - 1; i++) {
-      final from = stops[i];
-      final to = stops[i + 1];
-      if (from.sequence >= nextStop.sequence &&
-          !skipped.contains(from.sequence) &&
-          !skipped.contains(to.sequence)) {
-        final seg = routeService.getSegment(from.sequence, to.sequence);
-        if (upcomingRoadPoints.isNotEmpty && seg.isNotEmpty) {
-          upcomingRoadPoints.addAll(seg.skip(1));
-        } else {
-          upcomingRoadPoints.addAll(seg);
-        }
-      }
-    }
-    if (upcomingRoadPoints.length >= 2) {
-      polylines.add(Polyline(
-        points: upcomingRoadPoints,
-        color: const Color(0xFF93C5FD), // subtle pale blue
-        strokeWidth: 3.5,
-        strokeCap: StrokeCap.round,
-        strokeJoin: StrokeJoin.round,
-      ));
-    }
-
-    // --- 3. ACTIVE / HIGHLIGHTED SEGMENT: REAL BUS GPS → ROAD GEOMETRY → NEXT STOP ---
-    // Finds previous stop sequence (or nextStop.sequence - 1)
-    final fromSeq = (currentSeq > 0 && currentSeq < nextStop.sequence)
-        ? currentSeq
-        : (nextStop.sequence > 1 ? nextStop.sequence - 1 : 1);
-    final activeRoadPoints = routeService.getActiveRoute(
-      busPos: busPos,
-      fromSeq: fromSeq,
-      toSeq: nextStop.sequence,
-    );
-
-    final isOffline = live.isBusOffline;
-    if (activeRoadPoints.length >= 2) {
-      if (isOffline) {
-        // Muted dashed/subdued line when bus is offline
-        polylines.add(Polyline(
-          points: activeRoadPoints,
-          color: const Color(0xFF94A3B8), // muted slate grey
+    // 1. Complete road-following campus route in BLUE
+    final fullRoadPoints = routeService.getFullRoute(stops, skippedSequences: skipped);
+    if (fullRoadPoints.length >= 2) {
+      polylines.add(
+        Polyline(
+          points: fullRoadPoints,
+          color: const Color(0xFF3B82F6), // Complete campus route in vibrant blue
           strokeWidth: 4.0,
           strokeCap: StrokeCap.round,
           strokeJoin: StrokeJoin.round,
-        ));
-      } else {
-        // Outer glow underlay for prominent visibility
-        polylines.add(Polyline(
-          points: activeRoadPoints,
-          color: const Color(0x551E3A8A), // dark blue glow
-          strokeWidth: 10.0,
-          strokeCap: StrokeCap.round,
-          strokeJoin: StrokeJoin.round,
-        ));
+        ),
+      );
+    }
 
-        // Core highlighted route line from bus to next stop in bold Dark Blue
-        polylines.add(Polyline(
-          points: activeRoadPoints,
-          color: const Color(0xFF1E3A8A), // deep dark blue
-          strokeWidth: 6.0,
+    // When trip is inactive or there is no next stop or bus location, only show the BLUE full route
+    final busPos = live.busLatLng;
+    final nextStop = live.nextStop;
+    if (live.busStatus == 'INACTIVE' || nextStop == null || busPos == null) {
+      return polylines;
+    }
+
+    // 2. Remaining route in GRAY (from snapped bus position along predefined route to next stop)
+    LatLng? nextStopPos;
+    if (nextStop.latitude != 0.0 && nextStop.longitude != 0.0) {
+      nextStopPos = LatLng(nextStop.latitude, nextStop.longitude);
+    } else {
+      for (final s in stops) {
+        if (s.sequence == nextStop.sequence && s.latitude != 0.0 && s.longitude != 0.0) {
+          nextStopPos = LatLng(s.latitude, s.longitude);
+          break;
+        }
+      }
+    }
+
+    final currentSeq = live.currentSequence ?? 0;
+    final fromSeq = (currentSeq > 0 && currentSeq < nextStop.sequence)
+        ? currentSeq
+        : (nextStop.sequence > 1 ? nextStop.sequence - 1 : 1);
+
+    final remainingRoute = RouteService.instance.getRemainingRoute(
+      busLocation: busPos,
+      nextStopLocation: nextStopPos,
+      fromSequence: fromSeq,
+      toSequence: nextStop.sequence,
+    );
+
+    if (remainingRoute.length >= 2) {
+      final isOffline = live.isBusOffline;
+
+      // Outer contrast underlay
+      polylines.add(
+        Polyline(
+          points: remainingRoute,
+          color: const Color(0x33334155),
+          strokeWidth: 9.0,
           strokeCap: StrokeCap.round,
           strokeJoin: StrokeJoin.round,
-        ));
-      }
+        ),
+      );
+
+      // Core remaining route line in GRAY
+      polylines.add(
+        Polyline(
+          points: remainingRoute,
+          color: isOffline ? const Color(0xFF94A3B8) : const Color(0xFF475569), // Muted if offline, else solid gray
+          strokeWidth: 5.5,
+          strokeCap: StrokeCap.round,
+          strokeJoin: StrokeJoin.round,
+        ),
+      );
     }
 
     return polylines;
   }
+
 
   void _showRouteTimelineSheet(BuildContext context, LiveProvider live) {
     showModalBottomSheet(

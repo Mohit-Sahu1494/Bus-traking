@@ -107,8 +107,16 @@ class TripProvider extends ChangeNotifier {
       busId = data['bus']?['id']?.toString() ?? busId;
       busStatus = data['bus']?['status']?.toString() ?? busStatus;
       tripsToday = (data['tripsToday'] as num?)?.toInt() ?? 0;
-      live = data['live'] is Map ? Map<String, dynamic>.from(data['live'] as Map) : null;
-      tripStatus = live?['status']?.toString() ?? 'NOT_STARTED';
+      final serverLive = data['live'] is Map ? Map<String, dynamic>.from(data['live'] as Map) : null;
+      if (serverLive != null) {
+        live = serverLive;
+        tripStatus = live?['status']?.toString() ?? 'NOT_STARTED';
+      } else {
+        if (!isStartingTrip) {
+          live = null;
+          tripStatus = 'NOT_STARTED';
+        }
+      }
 
       if (isActive || isPaused) {
         await _ensureGps();
@@ -363,6 +371,30 @@ class TripProvider extends ChangeNotifier {
           if (raw['isFinalStopReached'] != null) {
             live!['isFinalStopReached'] = raw['isFinalStopReached'];
           }
+        } else if (e == 'driver_trip_started' && raw is Map) {
+          live = Map<String, dynamic>.from(raw);
+          tripStatus = 'ACTIVE';
+          busStatus = 'ACTIVE';
+          await _ensureGps();
+        } else if (e == 'driver_trip_paused' && raw is Map) {
+          live = Map<String, dynamic>.from(raw);
+          tripStatus = 'PAUSED';
+          busStatus = 'PAUSED';
+        } else if (e == 'driver_trip_resumed' && raw is Map) {
+          live = Map<String, dynamic>.from(raw);
+          tripStatus = 'ACTIVE';
+          busStatus = 'ACTIVE';
+          await _ensureGps();
+        } else if (e == 'driver_trip_ended') {
+          tripStatus = 'COMPLETED';
+          busStatus = 'INACTIVE';
+          live = null;
+          await _stopGps();
+          await loadHistory();
+        } else if (e == 'bus_status_updated' && raw is Map) {
+          if (raw['status'] != null) {
+            busStatus = raw['status'].toString();
+          }
         } else {
           await refresh();
         }
@@ -394,19 +426,17 @@ class TripProvider extends ChangeNotifier {
 
     // Start streaming position with foreground notification
     final assignedBus = busNumber.isNotEmpty ? busNumber : 'BUS-04';
-    if (_gpsSub == null) {
-      _gpsSub = _location.stream(busNumber: assignedBus).listen(
-        _onPosition,
-        onError: (err) {
-          debugPrint('[TripProvider] GPS Signal lost or stream error: $err');
-          _gpsSub?.cancel();
-          _gpsSub = null;
-          gpsError = 'GPS Signal Lost: $err';
-          gpsOn = false;
-          notifyListeners();
-        },
-      );
-    }
+    _gpsSub ??= _location.stream(busNumber: assignedBus).listen(
+      _onPosition,
+      onError: (err) {
+        debugPrint('[TripProvider] GPS Signal lost or stream error: $err');
+        _gpsSub?.cancel();
+        _gpsSub = null;
+        gpsError = 'GPS Signal Lost: $err';
+        gpsOn = false;
+        notifyListeners();
+      },
+    );
 
     // Initial position sample
     final pos = await _location.current();
